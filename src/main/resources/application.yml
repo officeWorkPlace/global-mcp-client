@@ -46,18 +46,80 @@ mcp:
       max-attempts: 3
       backoff-multiplier: 2
   servers:
-    github:
+    # GitHub MCP Server - Production Ready
+    github-mcp-server:
       type: http
       url: "https://api.githubcopilot.com/mcp/"
       timeout: 30000
       enabled: true
       headers:
         User-Agent: "Global-MCP-Client/1.0"
-    example:
+        Accept: "application/json"
+        Content-Type: "application/json"
+        # Authorization: "Bearer ${GITHUB_TOKEN}" # Set via environment variable
+      description: "GitHub Copilot MCP server for repository operations"
+      
+    # MongoDB MCP Server - Production Ready  
+    mongodb-mcp-server:
       type: stdio
       command: "node"
-      args: ["${user.dir}/mcp-servers/example.js"]
+      args: ["${MCP_MONGODB_SERVER_PATH:./mcp-servers/mongodb-server.js}"]
+      timeout: 15000
+      enabled: true
+      environment:
+        NODE_ENV: "production"
+        MONGODB_URI: "${MONGODB_URI:mongodb://localhost:27017/myDB}"
+        MONGODB_DB_NAME: "${MONGODB_DB_NAME:myDB}"
+        MCP_SERVER_NAME: "mongodb-mcp-server"
+        LOG_LEVEL: "${LOG_LEVEL:info}"
+      description: "MongoDB MCP server for database operations"
+      
+    # Example local server (disabled by default)
+    example-mcp-server:
+      type: stdio
+      command: "node"
+      args: ["${workspaceFolder}/build/index.js"]
       timeout: 15000
       enabled: false
       environment:
-        NODE_ENV: "production"
+        NODE_ENV: "development"
+      description: "Example MCP server for testing"
+
+# Server-specific configuration profiles
+---
+spring:
+  config:
+    activate:
+      on-profile: "github-only"
+mcp:
+  servers:
+    mongodb-mcp-server:
+      enabled: false
+    example-mcp-server:
+      enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "mongodb-only"
+mcp:
+  servers:
+    github-mcp-server:
+      enabled: false
+    example-mcp-server:
+      enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "testing"
+mcp:
+  servers:
+    github-mcp-server:
+      enabled: false
+    mongodb-mcp-server:
+      enabled: false
+    example-mcp-server:
+      enabled: true
