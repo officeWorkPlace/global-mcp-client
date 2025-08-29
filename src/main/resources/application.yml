@@ -1,0 +1,63 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: global-mcp-client
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+  web:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "*"
+      allowed-headers: "*"
+
+logging:
+  level:
+    com.officeworkplace: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+mcp:
+  client:
+    default-timeout: 30000
+    max-connections: 100
+    connection-pool-size: 10
+    retry:
+      max-attempts: 3
+      backoff-multiplier: 2
+  servers:
+    github:
+      type: http
+      url: "https://api.githubcopilot.com/mcp/"
+      timeout: 30000
+      enabled: true
+      headers:
+        User-Agent: "Global-MCP-Client/1.0"
+    example:
+      type: stdio
+      command: "node"
+      args: ["${user.dir}/mcp-servers/example.js"]
+      timeout: 15000
+      enabled: false
+      environment:
+        NODE_ENV: "production"
