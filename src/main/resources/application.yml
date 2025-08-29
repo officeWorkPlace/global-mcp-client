@@ -59,20 +59,35 @@ mcp:
         # Authorization: "Bearer ${GITHUB_TOKEN}" # Set via environment variable
       description: "GitHub Copilot MCP server for repository operations"
       
-    # MongoDB MCP Server - Production Ready  
+    # MongoDB MCP Server - Java Spring Boot Implementation
+    mongo-mcp-server:
+      type: stdio
+      command: "java"
+      args: ["-jar", "${MONGO_MCP_SERVER_JAR_PATH:C:/spring-boot-ai-mongo.jar}"]
+      timeout: 20000
+      enabled: true
+      environment:
+        MONGO_HOST: "${MONGO_HOST:localhost}"
+        MONGO_PORT: "${MONGO_PORT:27017}"
+        MONGO_DATABASE: "${MONGO_DATABASE:myDB}"
+        SPRING_PROFILES_ACTIVE: "${MONGO_MCP_PROFILE:production}"
+        LOGGING_LEVEL: "${MONGO_MCP_LOG_LEVEL:INFO}"
+      description: "Spring Boot MongoDB MCP server for database operations"
+      
+    # Node.js MongoDB MCP Server (Alternative)
     mongodb-mcp-server:
       type: stdio
       command: "node"
       args: ["${MCP_MONGODB_SERVER_PATH:./mcp-servers/mongodb-server.js}"]
       timeout: 15000
-      enabled: true
+      enabled: false
       environment:
         NODE_ENV: "production"
         MONGODB_URI: "${MONGODB_URI:mongodb://localhost:27017/myDB}"
         MONGODB_DB_NAME: "${MONGODB_DB_NAME:myDB}"
         MCP_SERVER_NAME: "mongodb-mcp-server"
         LOG_LEVEL: "${LOG_LEVEL:info}"
-      description: "MongoDB MCP server for database operations"
+      description: "Node.js MongoDB MCP server for database operations"
       
     # Example local server (disabled by default)
     example-mcp-server:
@@ -93,6 +108,22 @@ spring:
       on-profile: "github-only"
 mcp:
   servers:
+    mongo-mcp-server:
+      enabled: false
+    mongodb-mcp-server:
+      enabled: false
+    example-mcp-server:
+      enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "mongo-only"
+mcp:
+  servers:
+    github-mcp-server:
+      enabled: false
     mongodb-mcp-server:
       enabled: false
     example-mcp-server:
@@ -107,6 +138,8 @@ mcp:
   servers:
     github-mcp-server:
       enabled: false
+    mongo-mcp-server:
+      enabled: false
     example-mcp-server:
       enabled: false
 
@@ -118,6 +151,8 @@ spring:
 mcp:
   servers:
     github-mcp-server:
+      enabled: false
+    mongo-mcp-server:
       enabled: false
     mongodb-mcp-server:
       enabled: false
