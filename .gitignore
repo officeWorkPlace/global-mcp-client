@@ -1,0 +1,41 @@
+# Maven
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+
+# IDEs and editors
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build
+/bin/
+/coverage/
+
+# Application
+application-local.yml
+application-dev.yml
+*.pid
+
+# Temporary files
+*.tmp
+*.temp
+
+# Spring Boot
+spring-shell.log
