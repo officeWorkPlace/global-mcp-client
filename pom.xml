@@ -142,6 +142,16 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+                <configuration>
+                    <!-- Exclude MongoDB and Python integration tests by default -->
+                    <excludes>
+                        <exclude>**/*ComprehensiveMongoMcpToolsTest.java</exclude>
+                        <exclude>**/*ComprehensiveMcpToolsTest.java</exclude>
+                        <exclude>**/*PythonMcpEndToEndTest.java</exclude>
+                        <exclude>**/*SimplifiedPythonFilesystemMcpToolsTest.java</exclude>
+                        <exclude>**/integration/*Test.java</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>
