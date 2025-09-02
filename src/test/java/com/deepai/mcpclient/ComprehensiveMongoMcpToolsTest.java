@@ -4,6 +4,7 @@ import com.deepai.mcpclient.model.McpTool;
 import com.deepai.mcpclient.model.McpToolResult;
 import com.deepai.mcpclient.service.McpClientService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;

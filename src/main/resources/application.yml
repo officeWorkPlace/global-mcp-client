@@ -58,10 +58,10 @@ mcp:
       environment:
         SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
         MONGO_DATABASE: "mcpserver"
-    filesystem-python-mcp-server:
-      type: stdio
-      command: "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\venv\\Scripts\\python.exe"
-      args:
-        - "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\src\\main.py"
-      timeout: 8000
-      enabled: true
+#    filesystem-python-mcp-server:
+#      type: stdio
+#      command: "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\venv\\Scripts\\python.exe"
+#      args:
+#        - "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\src\\main.py"
+#      timeout: 8000
+#      enabled: true
