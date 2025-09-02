@@ -202,14 +202,14 @@ mcp:
 **A:** 
 
 ```bash
-curl http://localhost:8082/api/mcp/tools
+curl http://localhost:8081/api/tools
 ```
 
 ### Q: How do I execute a tool on a specific server?
 **A:** 
 
 ```bash
-curl -X POST http://localhost:8082/api/mcp/servers/{serverId}/tools/{toolName} \
+curl -X POST http://localhost:8081/api/servers/{serverId}/tools/{toolName} \
   -H "Content-Type: application/json" \
   -d '{"parameters": {"param1": "value1"}}'
 ```
@@ -218,14 +218,14 @@ curl -X POST http://localhost:8082/api/mcp/servers/{serverId}/tools/{toolName} \
 **A:** 
 
 ```bash
-curl http://localhost:8082/api/mcp/health
+curl http://localhost:8081/api/health
 ```
 
 ### Q: Can I use the API from JavaScript/browser?
 **A:** Yes, the API supports CORS by default:
 
 ```javascript
-fetch('http://localhost:8082/api/mcp/servers')
+fetch('http://localhost:8081/api/servers')
   .then(response => response.json())
   .then(data => console.log(data));
 ```
@@ -244,9 +244,9 @@ fetch('http://localhost:8082/api/mcp/servers')
 
 ### Q: How do I monitor the application?
 **A:** The application exposes several monitoring endpoints:
-- Health: `http://localhost:8082/actuator/health`
-- Metrics: `http://localhost:8082/actuator/metrics`
-- Prometheus: `http://localhost:8082/actuator/prometheus`
+- Health: `http://localhost:8081/actuator/health`
+- Metrics: `http://localhost:8081/actuator/metrics`
+- Prometheus: `http://localhost:8081/actuator/prometheus`
 
 ### Q: How do I scale the application?
 **A:** The application is stateless and can be horizontally scaled:
