@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8082
   servlet:
     context-path: /
 
@@ -19,9 +19,8 @@ spring:
 
 logging:
   level:
-    com.deepai: INFO
-    org.springframework.web: WARN
-    root: WARN
+    com.deepai: DEBUG
+    org.springframework.web: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
@@ -33,17 +32,17 @@ management:
   endpoint:
     health:
       show-details: always
-  prometheus:
-    metrics:
-      export:
+  metrics:
+    export:
+      prometheus:
         enabled: true
 
 mcp:
   client:
-    default-timeout: 5000
+    default-timeout: 15000  # Increased from 5000 to 15000 (15 seconds)
     retry:
-      max-attempts: 2
-      backoff-multiplier: 1.2
+      max-attempts: 3       # Increased from 2 to 3 attempts
+      backoff-multiplier: 1.5  # Increased from 1.2 to 1.5
   servers:
     mongo-mcp-server-test:
       type: stdio
@@ -53,15 +52,8 @@ mcp:
         - "-Dspring.main.web-application-type=none"
         - "-jar"
         - 'D:\\MCP\\MCP-workspace-bootcampToProd\\spring-boot-ai-mongo-mcp-server\\target\\spring-boot-ai-mongo-mcp-server-0.0.1-SNAPSHOT.jar'
-      timeout: 8000
+      timeout: 20000        # Increased from 8000 to 20000 (20 seconds)
       enabled: true
       environment:
         SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
         MONGO_DATABASE: "mcpserver"
-    filesystem-python-mcp-server:
-      type: stdio
-      command: "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\venv\\Scripts\\python.exe"
-      args:
-        - "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\src\\main.py"
-      timeout: 8000
-      enabled: true
