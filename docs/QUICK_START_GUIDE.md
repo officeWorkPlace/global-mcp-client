@@ -163,7 +163,7 @@ Create or update `src/main/resources/application.yml`:
 
 ```yaml
 server:
-  port: 8082  # Updated to current port
+  port: 8081  # Application runs on port 8081
 
 spring:
   application:
@@ -233,7 +233,7 @@ You should see output like:
 
 ### Check Application Health
 ```bash
-curl http://localhost:8082/actuator/health
+curl http://localhost:8081/actuator/health
 ```
 
 Expected response:
@@ -249,7 +249,7 @@ Expected response:
 
 ### List Connected Servers
 ```bash
-curl http://localhost:8082/api/mcp/servers
+curl http://localhost:8081/api/servers
 ```
 
 Expected response:
@@ -268,7 +268,7 @@ Expected response:
 
 ### List Available Tools
 ```bash
-curl http://localhost:8082/api/mcp/tools
+curl http://localhost:8081/api/tools
 ```
 
 Expected response:
@@ -286,7 +286,7 @@ Expected response:
 
 ### Execute a Tool
 ```bash
-curl -X POST http://localhost:8082/api/mcp/servers/test-server/tools/hello_world \
+curl -X POST http://localhost:8081/api/servers/test-server/tools/hello_world \
   -H "Content-Type: application/json" \
   -d '{"parameters": {"arguments": {"name": "Alice"}}}'
 ```
@@ -320,9 +320,9 @@ You now have:
 ## Next Steps
 
 ### Explore the API
-- Visit `http://localhost:8082/swagger-ui.html` for interactive API documentation
-- Check `http://localhost:8082/actuator/health` for health monitoring
-- View metrics at `http://localhost:8082/actuator/metrics`
+- Visit `http://localhost:8081/swagger-ui.html` for interactive API documentation
+- Check `http://localhost:8081/actuator/health` for health monitoring
+- View metrics at `http://localhost:8081/actuator/metrics`
 
 ### Add Real MCP Servers
 Replace the test server with real MCP servers:
@@ -384,10 +384,10 @@ which python
 ### API Calls Failing
 ```bash
 # Check application is running
-curl http://localhost:8082/actuator/health
+curl http://localhost:8081/actuator/health
 
 # Check server status
-curl http://localhost:8082/api/mcp/servers
+curl http://localhost:8081/api/servers
 
 # Enable debug logging (add to application.yml):
 # logging:

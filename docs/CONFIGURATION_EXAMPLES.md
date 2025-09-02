@@ -20,7 +20,7 @@ This document provides working configuration examples for the Global MCP Client,
 
 ```yaml
 server:
-  port: 8082
+  port: 8081
   servlet:
     context-path: /
 
@@ -82,7 +82,7 @@ mcp:
 
 ### 2.2 Key Configuration Points
 
-- **Port 8082**: Application runs on port 8082 (not default 8080)
+- **Port 8081**: Application runs on port 8081 (default configuration)
 - **Spring AI Integration**: Uses Spring AI MCP server with Spring profiles
 - **Smart Detection**: Automatically detects Spring AI vs standard stdio servers
 - **Comprehensive Monitoring**: Health, metrics, and Prometheus endpoints enabled

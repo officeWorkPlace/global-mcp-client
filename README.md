@@ -108,7 +108,7 @@ The Global MCP Client currently supports two main types of MCP servers:
 
 ```yaml
 server:
-  port: 8082  # Application runs on port 8082
+  port: 8081  # Application runs on port 8081
 
 mcp:
   client:
@@ -143,11 +143,11 @@ mcp:
 
 ## API Endpoints
 
-- **GET /api/mcp/servers** - List configured servers
-- **GET /api/mcp/servers/{serverId}** - Get server information
-- **POST /api/mcp/servers/{serverId}/tools** - Execute tools on specific server
-- **GET /api/mcp/servers/{serverId}/resources** - Get resources from server
-- **GET /api/mcp/health** - Overall health status
+- **GET /api/servers** - List configured servers
+- **GET /api/servers/{serverId}** - Get server information
+- **POST /api/servers/{serverId}/tools/{toolName}** - Execute tools on specific server
+- **GET /api/servers/{serverId}/resources** - Get resources from server
+- **GET /api/health** - Overall health status
 
 ## Dependencies
 
@@ -196,9 +196,9 @@ mcp:
    java -jar target/global-mcp-client-1.0.0-SNAPSHOT.jar
    ```
 
-4. **Test Connectivity**: Visit `http://localhost:8082/swagger-ui.html`
+4. **Test Connectivity**: Visit `http://localhost:8081/swagger-ui.html`
 
-5. **Use the API**: Make requests to `http://localhost:8082/api/mcp/`
+5. **Use the API**: Make requests to `http://localhost:8081/api/`
 
 This global client is designed to be the **central hub** for all MCP communications in your infrastructure, while actual data processing and storage happens in the individual MCP servers.
 
@@ -218,7 +218,7 @@ This global client is designed to be the **central hub** for all MCP communicati
 - **Problem**: `Port already in use`
 - **Solution**: 
   - Change the server port in `application.yml`
-  - Check for other applications using ports 8081, 9090
+  - Check for other applications using ports 8081, 8082
   - Use `netstat -an | findstr :8081` on Windows or `lsof -i :8081` on Unix
 
 #### Configuration Errors
@@ -240,19 +240,19 @@ This global client is designed to be the **central hub** for all MCP communicati
 
 ```bash
 # Check application health
-curl http://localhost:8082/actuator/health
+curl http://localhost:8081/actuator/health
 
 # View server status
-curl http://localhost:8082/api/mcp/servers
+curl http://localhost:8081/api/servers
 
 # Test specific server health
-curl http://localhost:8082/api/mcp/servers/{serverId}/health
+curl http://localhost:8081/api/servers/{serverId}/health
 
 # View application logs
 tail -f logs/application.log
 
 # Test with actual server ID
-curl http://localhost:8082/api/mcp/servers/mongo-mcp-server-test/health
+curl http://localhost:8081/api/servers/mongo-mcp-server-test/health
 ```
 
 ### Logging Configuration

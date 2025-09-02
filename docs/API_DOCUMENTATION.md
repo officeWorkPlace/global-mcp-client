@@ -31,14 +31,14 @@ The Global MCP Client API provides programmatic access to multiple Model Context
 **Current Implementation URLs:**
 
 ```
-Development: http://localhost:8082/api/mcp/
-Production:  https://your-domain.com/api/mcp/
-Staging:     https://staging.your-domain.com/api/mcp/
+Development: http://localhost:8081/api/
+Production:  https://your-domain.com/api/
+Staging:     https://staging.your-domain.com/api/
 ```
 
 **Important Notes:**
-- The application runs on port **8082** by default
-- Base path is `/api/mcp/` (not `/api/v1/`)
+- The application runs on port **8081** by default
+- Base path is `/api/` (standard REST API path)
 - Health endpoints are available at `/actuator/health`
 - Swagger UI is available at `/swagger-ui.html`
 

@@ -21,7 +21,7 @@ The Global MCP Client is a production-ready Spring Boot application that provide
 - **Multi-Server Management:** Concurrent connections to multiple heterogeneous MCP servers
 - **Reactive Programming:** Non-blocking operations with Spring WebFlux and Project Reactor
 - **Production Ready:** Comprehensive logging, metrics, health monitoring, and error handling
-- **REST API Gateway:** Unified HTTP API running on port 8082 for all connected servers
+- **REST API Gateway:** Unified HTTP API running on port 8081 for all connected servers
 
 ---
 
