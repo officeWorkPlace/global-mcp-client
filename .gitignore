@@ -36,6 +36,12 @@ application-dev.yml
 # Temporary files
 *.tmp
 *.temp
+client.log
+client_error.log
+
+# Test scripts
+*test*.ps1
+start_*.ps1
 
 # Spring Boot
 spring-shell.log

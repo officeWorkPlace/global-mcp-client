@@ -1,0 +1,72 @@
+mcp:
+  client:
+    default-timeout: 5000
+    retry:
+      max-attempts: 2
+      backoff-multiplier: 1.2
+  servers:
+    # 🔵 WILL USE SpringAiMcpServerConnection (auto-detected)
+    # Criteria: java + -jar + spring profile
+    spring-ai-mongo:
+      type: stdio
+      command: "java"
+      args:
+        - "-Dspring.profiles.active=mcp"
+        - "-Dspring.main.web-application-type=none"
+        - "-jar"
+        - "spring-boot-ai-mongo-mcp-server.jar"
+      timeout: 8000
+      enabled: true
+      environment:
+        SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
+
+    # 🟢 WILL USE StdioMcpServerConnection (auto-detected) 
+    # Criteria: python command = standard MCP
+    python-filesystem:
+      type: stdio
+      command: "python"
+      args: ["-m", "mcp_server_filesystem", "--path", "/data"]
+      timeout: 5000
+      enabled: true
+      environment:
+        PYTHONPATH: "/opt/mcp"
+
+    # 🟢 WILL USE StdioMcpServerConnection (auto-detected)
+    # Criteria: node command = standard MCP
+    nodejs-git:
+      type: stdio
+      command: "node" 
+      args: ["git-mcp-server.js", "--repo", "/path/to/repo"]
+      timeout: 5000
+      enabled: true
+      environment:
+        NODE_ENV: "production"
+        
+    # 🟢 WILL USE StdioMcpServerConnection (auto-detected)
+    # Criteria: rust executable = standard MCP
+    rust-database:
+      type: stdio
+      command: "./target/release/db-mcp-server"
+      args: ["--config", "db.toml"]
+      timeout: 8000
+      enabled: true
+      
+    # 🟢 WILL USE StdioMcpServerConnection (auto-detected)
+    # Criteria: go executable = standard MCP
+    go-api:
+      type: stdio
+      command: "./go-mcp-server"
+      args: ["-port", "3000", "-env", "prod"]
+      timeout: 5000
+      enabled: true
+
+    # 🔵 WILL USE SpringAiMcpServerConnection (auto-detected)
+    # Criteria: jar name contains "spring-ai-mcp"
+    another-spring-server:
+      type: stdio
+      command: "java"
+      args:
+        - "-jar"
+        - "my-custom-spring-ai-mcp-server.jar"
+      timeout: 8000
+      enabled: true
