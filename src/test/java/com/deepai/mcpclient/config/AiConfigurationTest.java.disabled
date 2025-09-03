@@ -1,0 +1,157 @@
+package com.deepai.mcpclient.config;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.TestPropertySource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Integration test to verify Spring AI configuration and application startup
+ * with AI features enabled and properly configured
+ */
+@SpringBootTest
+@EnableConfigurationProperties
+@TestPropertySource(properties = {
+    "ai.enabled=true",
+    "ai.default-model=test-model",
+    "ai.max-tokens=1024",
+    "spring.ai.ollama.base-url=http://localhost:11434"
+})
+public class AiConfigurationTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private AiConfiguration.AiProperties aiProperties;
+
+    @Test
+    void testApplicationContextLoads() {
+        // Verify that the application context loads successfully with AI configuration
+        assertThat(applicationContext).isNotNull();
+        assertThat(applicationContext.containsBean("aiProperties")).isTrue();
+        assertThat(applicationContext.containsBean("chatModel")).isTrue();
+    }
+
+    @Test
+    void testAiPropertiesConfiguration() {
+        // Verify AI properties are correctly loaded from configuration
+        assertThat(aiProperties).isNotNull();
+        assertThat(aiProperties.isEnabled()).isTrue();
+        assertThat(aiProperties.getDefaultModel()).isEqualTo("test-model");
+        assertThat(aiProperties.getMaxTokens()).isEqualTo(1024);
+        assertThat(aiProperties.getFallbackModel()).isEqualTo("mistral:7b"); // Default value
+        assertThat(aiProperties.getContextWindow()).isEqualTo(4096); // Default value
+    }
+
+    @Test
+    void testChatModelBeanExists() {
+        // Verify ChatModel bean is created and available
+        assertThat(applicationContext.containsBean("chatModel")).isTrue();
+        
+        ChatModel chatModel = applicationContext.getBean("chatModel", ChatModel.class);
+        assertThat(chatModel).isNotNull();
+    }
+
+    @Test
+    void testAiConfigurationBeanExists() {
+        // Verify AiConfiguration is properly instantiated
+        assertThat(applicationContext.containsBean("aiConfiguration")).isTrue();
+        
+        AiConfiguration aiConfig = applicationContext.getBean(AiConfiguration.class);
+        assertThat(aiConfig).isNotNull();
+    }
+
+    @Test
+    void testConditionalOnProperty() {
+        // Verify conditional loading works (AI is enabled by property)
+        assertThat(applicationContext.containsBean("chatModel")).isTrue();
+        assertThat(applicationContext.containsBean("aiProperties")).isTrue();
+    }
+
+    @Test
+    void testAiPropertiesDefaults() {
+        // Test with default values when properties are not set
+        AiConfiguration.AiProperties defaultProps = new AiConfiguration.AiProperties();
+        
+        assertThat(defaultProps.isEnabled()).isTrue();
+        assertThat(defaultProps.getDefaultModel()).isEqualTo("llama3.1:8b");
+        assertThat(defaultProps.getFallbackModel()).isEqualTo("mistral:7b");
+        assertThat(defaultProps.getContextWindow()).isEqualTo(4096);
+        assertThat(defaultProps.getMaxTokens()).isEqualTo(2048);
+    }
+
+    @Test
+    void testAiPropertiesGettersAndSetters() {
+        // Test all property getters and setters
+        AiConfiguration.AiProperties props = new AiConfiguration.AiProperties();
+        
+        // Test enabled property
+        props.setEnabled(false);
+        assertThat(props.isEnabled()).isFalse();
+        props.setEnabled(true);
+        assertThat(props.isEnabled()).isTrue();
+        
+        // Test model properties
+        props.setDefaultModel("custom-model");
+        assertThat(props.getDefaultModel()).isEqualTo("custom-model");
+        
+        props.setFallbackModel("custom-fallback");
+        assertThat(props.getFallbackModel()).isEqualTo("custom-fallback");
+        
+        // Test numeric properties
+        props.setContextWindow(8192);
+        assertThat(props.getContextWindow()).isEqualTo(8192);
+        
+        props.setMaxTokens(4096);
+        assertThat(props.getMaxTokens()).isEqualTo(4096);
+    }
+
+    @Test
+    void testBeanDependencies() {
+        // Verify that beans have proper dependencies
+        ChatModel chatModel = applicationContext.getBean(ChatModel.class);
+        AiConfiguration.AiProperties properties = applicationContext.getBean(AiConfiguration.AiProperties.class);
+        
+        assertThat(chatModel).isNotNull();
+        assertThat(properties).isNotNull();
+        
+        // Verify properties are correctly configured
+        assertThat(properties.isEnabled()).isTrue();
+    }
+
+    // This would typically be a separate test with different properties
+    // @Test
+    // @TestPropertySource(properties = {"ai.enabled=false"})
+    // void testAiDisabledConfiguration() {
+    //     // When AI is disabled, certain beans should not be created
+    //     // This would require a separate test class or test method with different configuration
+    // }
+}
+
+/**
+ * Separate test class for disabled AI configuration
+ */
+@SpringBootTest
+@TestPropertySource(properties = {
+    "ai.enabled=false"
+})
+class AiConfigurationDisabledTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Test
+    void testAiDisabledConfiguration() {
+        // Verify that application still loads when AI is disabled
+        assertThat(applicationContext).isNotNull();
+        
+        // The exact behavior depends on how @ConditionalOnProperty is configured
+        // This test verifies the application doesn't break when AI is disabled
+    }
+}
