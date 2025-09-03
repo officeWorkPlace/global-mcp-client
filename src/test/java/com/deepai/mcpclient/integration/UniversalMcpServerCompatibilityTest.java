@@ -260,8 +260,8 @@ public class UniversalMcpServerCompatibilityTest {
             Map.of("PYTHONPATH", "/opt/mcp")
         );
         
-        assertTrue(pythonConfig.isStdioType(), "Should recognize stdio type");
-        assertFalse(pythonConfig.isHttpType(), "Should not be HTTP type");
+        assertTrue("stdio".equalsIgnoreCase(pythonConfig.type()), "Should recognize stdio type");
+        assertFalse("http".equalsIgnoreCase(pythonConfig.type()), "Should not be HTTP type");
         assertEquals("python", pythonConfig.command(), "Should preserve command");
         assertEquals(4, pythonConfig.args().size(), "Should preserve arguments");
         assertFalse(pythonConfig.enabled(), "Should respect enabled flag");
@@ -278,7 +278,7 @@ public class UniversalMcpServerCompatibilityTest {
             Map.of("NODE_ENV", "production")
         );
         
-        assertTrue(nodeConfig.isStdioType(), "Should recognize stdio type");
+        assertTrue("stdio".equalsIgnoreCase(nodeConfig.type()), "Should recognize stdio type");
         assertEquals("node", nodeConfig.command(), "Should preserve Node command");
         assertEquals("production", nodeConfig.environment().get("NODE_ENV"), "Should preserve Node environment");
         

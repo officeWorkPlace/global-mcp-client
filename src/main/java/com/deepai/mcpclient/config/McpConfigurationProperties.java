@@ -47,12 +47,6 @@ public record McpConfigurationProperties(@Valid @NotNull ClientConfig client,
 
 			Map<String, String> environment) {
 
-		public boolean isStdioType() {
-			return "stdio".equalsIgnoreCase(type);
-		}
-
-		public boolean isHttpType() {
-			return "http".equalsIgnoreCase(type);
-		}
+		
 	}
 }

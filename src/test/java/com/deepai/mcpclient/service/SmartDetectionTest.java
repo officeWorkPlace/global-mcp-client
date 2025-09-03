@@ -2,7 +2,6 @@ package com.deepai.mcpclient.service;
 
 import com.deepai.mcpclient.config.McpConfigurationProperties.ServerConfig;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.List;
 import java.util.Map;
@@ -12,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Test to verify smart detection logic for different MCP server types
  */
-@SpringBootTest
 public class SmartDetectionTest {
 
     @Test

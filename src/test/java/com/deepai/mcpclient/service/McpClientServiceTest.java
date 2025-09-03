@@ -1,5 +1,8 @@
 package com.deepai.mcpclient.service;
 
+import com.deepai.mcpclient.service.impl.McpClientServiceImpl;
+import com.deepai.mcpclient.service.McpServerConnectionFactory;
+import com.deepai.mcpclient.service.impl.StdioMcpServerConnection;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.deepai.mcpclient.config.McpConfigurationProperties;
 import com.deepai.mcpclient.model.McpServerInfo;
@@ -9,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -17,13 +22,19 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class McpClientServiceTest {
     
     @Mock
     private ObjectMapper objectMapper;
+    
+    @Mock
+    private McpServerConnectionFactory mockFactory;
     
     private McpClientService mcpClientService;
     
@@ -40,7 +51,12 @@ class McpClientServiceTest {
         McpConfigurationProperties config = 
             new McpConfigurationProperties(clientConfig, Map.of("test-server", serverConfig));
         
-        mcpClientService = new McpClientService(config, objectMapper);
+        // Mock the factory to support "stdio" type
+        when(mockFactory.supports("stdio")).thenReturn(true);
+        when(mockFactory.createConnection(anyString(), any(McpConfigurationProperties.ServerConfig.class)))
+            .thenReturn(mock(StdioMcpServerConnection.class)); // Mock a connection
+
+        mcpClientService = new McpClientServiceImpl(config, List.of(mockFactory));
     }
     
     @Test
