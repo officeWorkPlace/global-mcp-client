@@ -90,6 +90,15 @@
             <artifactId>spring-ai-ollama</artifactId>
         </dependency>
 
+        <!-- Spring AI Gemini Integration (Not available in 1.0.1) -->
+        <!--
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-google-gemini</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+        -->
+
         <!-- Logging -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
@@ -118,6 +127,11 @@
                 <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-google-gemini-spring-boot-starter</artifactId>
+                <version>${spring-ai.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

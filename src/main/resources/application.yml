@@ -16,14 +16,14 @@ spring:
       allowed-origins: "*"
       allowed-methods: "*"
       allowed-headers: "*"
-  ai:
-    ollama:
-      base-url: "http://localhost:11434"
-      chat:
-        options:
-          model: "llama3.1:8b"
-          temperature: 0.7
-          max-tokens: 2048
+#  ai:
+#    ollama:
+#      base-url: "http://localhost:11434"
+#      chat:
+#        options:
+#          model: "llama3.1:8b"
+#          temperature: 0.7
+#          max-tokens: 2048
 
 logging:
   level:

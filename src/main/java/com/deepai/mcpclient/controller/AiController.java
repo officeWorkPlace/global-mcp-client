@@ -1,5 +1,6 @@
 package com.deepai.mcpclient.controller;
 
+import com.deepai.mcpclient.model.AskRequest;
 import com.deepai.mcpclient.model.ChatRequest;
 import com.deepai.mcpclient.model.ChatResponse;
 import com.deepai.mcpclient.service.AiService;
@@ -79,16 +80,15 @@ public class AiController {
     )
     @ApiResponse(responseCode = "200", description = "AI response")
     public Mono<ResponseEntity<Map<String, String>>> ask(
-            @Parameter(description = "Question to ask the AI assistant")
-            @RequestParam String question) {
+            @Valid @RequestBody AskRequest request) {
         
-        logger.info("AI ask request: '{}'", question);
+        logger.info("AI ask request: '{}'", request.question());
         
-        return aiService.ask(question)
+        return aiService.ask(request.question())
                 .map(response -> {
                     logger.debug("AI ask response generated");
                     return ResponseEntity.ok(Map.of(
-                        "question", question,
+                        "question", request.question(),
                         "response", response,
                         "timestamp", java.time.LocalDateTime.now().toString()
                     ));
@@ -96,7 +96,7 @@ public class AiController {
                 .onErrorResume(error -> {
                     logger.error("Error processing AI ask: {}", error.getMessage(), error);
                     return Mono.just(ResponseEntity.ok(Map.of(
-                        "question", question,
+                        "question", request.question(),
                         "response", "I encountered an error processing your question. Please try again.",
                         "error", "true",
                         "timestamp", java.time.LocalDateTime.now().toString()
