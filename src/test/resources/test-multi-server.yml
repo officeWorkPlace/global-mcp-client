@@ -1,0 +1,57 @@
+mcp:
+  client:
+    default-timeout: 5000
+    retry:
+      max-attempts: 2
+      backoff-multiplier: 1.2
+  servers:
+    # Spring AI 1.0.1 Native MCP Server (your current working server)
+    spring-ai-mongo:
+      type: stdio
+      command: "java"
+      args:
+        - "-Dspring.profiles.active=mcp"
+        - "-Dspring.main.web-application-type=none"
+        - "-jar"
+        - 'D:\\MCP\\MCP-workspace-bootcampToProd\\spring-boot-ai-mongo-mcp-server\\target\\spring-boot-ai-mongo-mcp-server-0.0.1-SNAPSHOT.jar'
+      timeout: 8000
+      enabled: true
+      environment:
+        SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
+        MONGO_DATABASE: "mcpserver"
+    
+    # Example Python MCP Server (if you had one)
+    python-filesystem:
+      type: stdio
+      command: "python"
+      args:
+        - "-m"
+        - "mcp_server_filesystem"
+        - "--path"
+        - "/tmp"
+      timeout: 5000
+      enabled: false  # Disabled since you don't have it
+      
+    # Example Node.js MCP Server (if you had one)
+    nodejs-git:
+      type: stdio
+      command: "node"
+      args:
+        - "git-mcp-server.js"
+      timeout: 5000
+      enabled: false  # Disabled since you don't have it
+      
+    # Another Spring AI server with different configuration
+    spring-ai-different-db:
+      type: stdio
+      command: "java"
+      args:
+        - "-Dspring.profiles.active=mcp"
+        - "-Dspring.main.web-application-type=none"
+        - "-jar"
+        - 'path/to/another-spring-ai-server.jar'
+      timeout: 8000
+      enabled: false  # Disabled for now
+      environment:
+        SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/differentdb"
+        MONGO_DATABASE: "differentdb"

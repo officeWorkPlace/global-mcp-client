@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
   servlet:
     context-path: /
 
@@ -16,11 +16,20 @@ spring:
       allowed-origins: "*"
       allowed-methods: "*"
       allowed-headers: "*"
+#  ai:
+#    ollama:
+#      base-url: "http://localhost:11434"
+#      chat:
+#        options:
+#          model: "llama3.1:8b"
+#          temperature: 0.7
+#          max-tokens: 2048
 
 logging:
   level:
-    com.officeworkplace: DEBUG
-    org.springframework.web: INFO
+    com.deepai: INFO
+    org.springframework.web: WARN
+    root: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
@@ -32,129 +41,43 @@ management:
   endpoint:
     health:
       show-details: always
-  metrics:
-    export:
-      prometheus:
+  prometheus:
+    metrics:
+      export:
         enabled: true
+
+# AI Configuration for natural language MCP interaction
+ai:
+  enabled: true
+  default-model: "llama3.1:8b"
+  fallback-model: "mistral:7b"
+  context-window: 4096
+  max-tokens: 2048
 
 mcp:
   client:
-    default-timeout: 30000
-    max-connections: 100
-    connection-pool-size: 10
+    default-timeout: 5000
     retry:
-      max-attempts: 3
-      backoff-multiplier: 2
+      max-attempts: 2
+      backoff-multiplier: 1.2
   servers:
-    # GitHub MCP Server - Production Ready
-    github-mcp-server:
-      type: http
-      url: "https://api.githubcopilot.com/mcp/"
-      timeout: 30000
-      enabled: true
-      headers:
-        User-Agent: "Global-MCP-Client/1.0"
-        Accept: "application/json"
-        Content-Type: "application/json"
-        # Authorization: "Bearer ${GITHUB_TOKEN}" # Set via environment variable
-      description: "GitHub Copilot MCP server for repository operations"
-      
-    # MongoDB MCP Server - Java Spring Boot Implementation
-    mongo-mcp-server:
+    mongo-mcp-server-test:
       type: stdio
       command: "java"
-      args: ["-jar", "${MONGO_MCP_SERVER_JAR_PATH:C:/spring-boot-ai-mongo.jar}"]
-      timeout: 20000
+      args:
+        - "-Dspring.profiles.active=mcp"
+        - "-Dspring.main.web-application-type=none"
+        - "-jar"
+        - 'D:\\MCP\\MCP-workspace-bootcampToProd\\spring-boot-ai-mongo-mcp-server\\target\\spring-boot-ai-mongo-mcp-server-0.0.1-SNAPSHOT.jar'
+      timeout: 8000
       enabled: true
       environment:
-        MONGO_HOST: "${MONGO_HOST:localhost}"
-        MONGO_PORT: "${MONGO_PORT:27017}"
-        MONGO_DATABASE: "${MONGO_DATABASE:myDB}"
-        SPRING_PROFILES_ACTIVE: "${MONGO_MCP_PROFILE:production}"
-        LOGGING_LEVEL: "${MONGO_MCP_LOG_LEVEL:INFO}"
-      description: "Spring Boot MongoDB MCP server for database operations"
-      
-    # Node.js MongoDB MCP Server (Alternative)
-    mongodb-mcp-server:
-      type: stdio
-      command: "node"
-      args: ["${MCP_MONGODB_SERVER_PATH:./mcp-servers/mongodb-server.js}"]
-      timeout: 15000
-      enabled: false
-      environment:
-        NODE_ENV: "production"
-        MONGODB_URI: "${MONGODB_URI:mongodb://localhost:27017/myDB}"
-        MONGODB_DB_NAME: "${MONGODB_DB_NAME:myDB}"
-        MCP_SERVER_NAME: "mongodb-mcp-server"
-        LOG_LEVEL: "${LOG_LEVEL:info}"
-      description: "Node.js MongoDB MCP server for database operations"
-      
-    # Example local server (disabled by default)
-    example-mcp-server:
-      type: stdio
-      command: "node"
-      args: ["${workspaceFolder}/build/index.js"]
-      timeout: 15000
-      enabled: false
-      environment:
-        NODE_ENV: "development"
-      description: "Example MCP server for testing"
-
-# Server-specific configuration profiles
----
-spring:
-  config:
-    activate:
-      on-profile: "github-only"
-mcp:
-  servers:
-    mongo-mcp-server:
-      enabled: false
-    mongodb-mcp-server:
-      enabled: false
-    example-mcp-server:
-      enabled: false
-
----
-spring:
-  config:
-    activate:
-      on-profile: "mongo-only"
-mcp:
-  servers:
-    github-mcp-server:
-      enabled: false
-    mongodb-mcp-server:
-      enabled: false
-    example-mcp-server:
-      enabled: false
-
----
-spring:
-  config:
-    activate:
-      on-profile: "mongodb-only"
-mcp:
-  servers:
-    github-mcp-server:
-      enabled: false
-    mongo-mcp-server:
-      enabled: false
-    example-mcp-server:
-      enabled: false
-
----
-spring:
-  config:
-    activate:
-      on-profile: "testing"
-mcp:
-  servers:
-    github-mcp-server:
-      enabled: false
-    mongo-mcp-server:
-      enabled: false
-    mongodb-mcp-server:
-      enabled: false
-    example-mcp-server:
-      enabled: true
+        SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
+        MONGO_DATABASE: "mcpserver"
+#    filesystem-python-mcp-server:
+#      type: stdio
+#      command: "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\venv\\Scripts\\python.exe"
+#      args:
+#        - "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\src\\main.py"
+#      timeout: 8000
+#      enabled: true
