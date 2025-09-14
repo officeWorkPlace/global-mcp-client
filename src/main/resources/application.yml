@@ -11,6 +11,25 @@ spring:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
+  ai:
+    # Google Gemini configuration (Core API) - Enabled with valid API key
+    google:
+      gemini:
+        enabled: true  # Enabled with working API key
+        api-key: AIzaSyCHlUfzXkvdlDFrtF1NXdjNnlKb4YwaITk
+        chat:
+          options:
+            model: gemini-1.5-flash
+            temperature: 0.7
+            max-tokens: 2048
+    # Fallback to Ollama if Gemini is not available
+    ollama:
+      base-url: "http://localhost:11434"
+      chat:
+        options:
+          model: "llama3.1:8b"
+          temperature: 0.7
+          max-tokens: 2048
   web:
     cors:
       allowed-origins: "*"
@@ -33,6 +52,13 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
+# AI Configuration for custom implementation
+ai:
+  enabled: true
+  provider: pattern-matching
+  model: gemini-1.5-flash
+  api-key: AIzaSyCHlUfzXkvdlDFrtF1NXdjNnlKb4YwaITk
+
 management:
   endpoints:
     web:
@@ -45,14 +71,6 @@ management:
     metrics:
       export:
         enabled: true
-
-# AI Configuration for natural language MCP interaction
-ai:
-  enabled: true
-  default-model: "llama3.1:8b"
-  fallback-model: "mistral:7b"
-  context-window: 4096
-  max-tokens: 2048
 
 mcp:
   client:
@@ -74,6 +92,16 @@ mcp:
       environment:
         SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
         MONGO_DATABASE: "mcpserver"
+
+---
+# Server profile - disable MCP servers for REST API testing
+spring:
+  config:
+    activate:
+      on-profile: server
+
+mcp:
+  servers: {}
 #    filesystem-python-mcp-server:
 #      type: stdio
 #      command: "D:\\MCP\\MCP-workspace-bootcampToProd\\filesystem_mcp_server\\venv\\Scripts\\python.exe"

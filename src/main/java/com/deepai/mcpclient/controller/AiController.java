@@ -84,12 +84,13 @@ public class AiController {
         
         logger.info("AI ask request: '{}'", request.question());
         
-        return aiService.ask(request.question())
-                .map(response -> {
-                    logger.debug("AI ask response generated");
+        return aiService.processChat(ChatRequest.simple(request.question()))
+                .map(chatResponse -> {
+                    logger.debug("AI ask response generated with model: {}", chatResponse.model());
                     return ResponseEntity.ok(Map.of(
                         "question", request.question(),
-                        "response", response,
+                        "response", chatResponse.response(),
+                        "model", chatResponse.model(),
                         "timestamp", java.time.LocalDateTime.now().toString()
                     ));
                 })
@@ -99,6 +100,7 @@ public class AiController {
                         "question", request.question(),
                         "response", "I encountered an error processing your question. Please try again.",
                         "error", "true",
+                        "model", "error-fallback",
                         "timestamp", java.time.LocalDateTime.now().toString()
                     )));
                 });

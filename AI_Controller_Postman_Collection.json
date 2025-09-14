@@ -1,0 +1,601 @@
+{
+  "info": {
+    "name": "Global MCP Client - AI Controller API Tests",
+    "description": "Comprehensive test collection for AI Controller endpoints in Global MCP Client",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Set base URL if not already set",
+          "if (!pm.globals.get('baseUrl')) {",
+          "    pm.globals.set('baseUrl', 'http://localhost:8081');",
+          "}",
+          "",
+          "// Generate unique context ID for each test run",
+          "if (!pm.globals.get('contextId')) {",
+          "    pm.globals.set('contextId', 'test-' + Math.random().toString(36).substr(2, 9));",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "contextId",
+      "value": "test-{{$randomAlphaNumeric}}",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Health check returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Health check response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('status');",
+              "    pm.expect(responseJson).to.have.property('aiEnabled');",
+              "    pm.expect(responseJson).to.have.property('timestamp');",
+              "});",
+              "",
+              "pm.test('AI service is healthy', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.status).to.eql('healthy');",
+              "    pm.expect(responseJson.aiEnabled).to.be.true;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "health"]
+        },
+        "description": "Check if AI service is healthy and operational"
+      }
+    },
+    {
+      "name": "Get AI Service Statistics",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Stats returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Stats response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('activeContexts');",
+              "    pm.expect(responseJson).to.have.property('aiEnabled');",
+              "    pm.expect(responseJson).to.have.property('status');",
+              "    pm.expect(responseJson).to.have.property('timestamp');",
+              "});",
+              "",
+              "pm.test('AI service is operational', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.status).to.eql('operational');",
+              "    pm.expect(responseJson.aiEnabled).to.be.true;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/stats",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "stats"]
+        },
+        "description": "Get AI service statistics and usage information"
+      }
+    },
+    {
+      "name": "Get Available MCP Tools",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Tools endpoint returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Tools response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('message');",
+              "    pm.expect(responseJson).to.have.property('timestamp');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/tools",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "tools"]
+        },
+        "description": "Get summary of available MCP tools across all servers"
+      }
+    },
+    {
+      "name": "Simple Ask - Database Operations",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Ask returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Ask response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('question');",
+              "    pm.expect(responseJson).to.have.property('response');",
+              "    pm.expect(responseJson).to.have.property('timestamp');",
+              "});",
+              "",
+              "pm.test('Response contains meaningful content', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.response).to.not.be.empty;",
+              "    pm.expect(responseJson.response.length).to.be.greaterThan(10);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"question\": \"What databases are available in the MongoDB server?\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/ask",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "ask"]
+        },
+        "description": "Ask a simple question about database operations"
+      }
+    },
+    {
+      "name": "Simple Ask - General MCP Question",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Ask returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Ask response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('question');",
+              "    pm.expect(responseJson).to.have.property('response');",
+              "    pm.expect(responseJson).to.have.property('timestamp');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"question\": \"What MCP servers are currently available?\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/ask",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "ask"]
+        },
+        "description": "Ask about available MCP servers"
+      }
+    },
+    {
+      "name": "Chat - Simple Database Query",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Chat returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Chat response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('response');",
+              "    pm.expect(responseJson).to.have.property('contextId');",
+              "    pm.expect(responseJson).to.have.property('toolsUsed');",
+              "    pm.expect(responseJson).to.have.property('timestamp');",
+              "    pm.expect(responseJson).to.have.property('model');",
+              "});",
+              "",
+              "pm.test('Response contains meaningful content', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.response).to.not.be.empty;",
+              "    pm.expect(responseJson.response.length).to.be.greaterThan(10);",
+              "});",
+              "",
+              "// Store context ID for next requests",
+              "const responseJson = pm.response.json();",
+              "if (responseJson.contextId) {",
+              "    pm.globals.set('chatContextId', responseJson.contextId);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"Show me all databases in the MongoDB server\",\n    \"context_id\": \"{{contextId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "chat"]
+        },
+        "description": "Chat to request database listing"
+      }
+    },
+    {
+      "name": "Chat - Collection Operations",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Chat returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Chat response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('response');",
+              "    pm.expect(responseJson).to.have.property('contextId');",
+              "    pm.expect(responseJson).to.have.property('toolsUsed');",
+              "});",
+              "",
+              "pm.test('Context ID is consistent', function () {",
+              "    const responseJson = pm.response.json();",
+              "    const previousContextId = pm.globals.get('chatContextId');",
+              "    if (previousContextId) {",
+              "        pm.expect(responseJson.contextId).to.eql(previousContextId);",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"Show me all collections in the testdb database\",\n    \"context_id\": \"{{contextId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "chat"]
+        },
+        "description": "Chat to request collections in a specific database"
+      }
+    },
+    {
+      "name": "Chat - Specific Server Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Chat returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Chat response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('response');",
+              "    pm.expect(responseJson).to.have.property('contextId');",
+              "    pm.expect(responseJson).to.have.property('toolsUsed');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"What tools are available on this server?\",\n    \"server_id\": \"mongo-mcp-server-test\",\n    \"context_id\": \"{{contextId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "chat"]
+        },
+        "description": "Chat with specific server ID to get server-specific information"
+      }
+    },
+    {
+      "name": "Chat - Document Operations",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Chat returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Chat response structure', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('response');",
+              "    pm.expect(responseJson).to.have.property('contextId');",
+              "    pm.expect(responseJson).to.have.property('toolsUsed');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"Create a new collection called 'users' in the testdb database\",\n    \"context_id\": \"{{contextId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "chat"]
+        },
+        "description": "Chat to perform document/collection operations"
+      }
+    },
+    {
+      "name": "Get Conversation Context",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Context returns 200 or 404', function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    pm.test('Context response structure', function () {",
+              "        const responseJson = pm.response.json();",
+              "        pm.expect(responseJson).to.have.property('contextId');",
+              "        pm.expect(responseJson).to.have.property('messageCount');",
+              "        pm.expect(responseJson).to.have.property('createdAt');",
+              "        pm.expect(responseJson).to.have.property('lastUsed');",
+              "    });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/context/{{contextId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "context", "{{contextId}}"]
+        },
+        "description": "Get information about a specific conversation context"
+      }
+    },
+    {
+      "name": "Error Test - Invalid Ask Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Invalid request returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"question\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/ask",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "ask"]
+        },
+        "description": "Test validation with empty question"
+      }
+    },
+    {
+      "name": "Error Test - Invalid Chat Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Invalid request returns 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "chat"]
+        },
+        "description": "Test validation with empty message"
+      }
+    },
+    {
+      "name": "Stress Test - Long Message",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Chat handles long message', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response is meaningful despite long input', function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.response).to.not.be.empty;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"message\": \"I need to understand how to work with databases. Can you help me list all the databases available on the MongoDB server, then show me the collections in each database, and also explain what tools are available for database operations? I'm particularly interested in CRUD operations and any advanced features like indexing or aggregation pipelines that might be available through the MCP interface.\",\n    \"context_id\": \"stress-test-{{$randomAlphaNumeric}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/chat",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "chat"]
+        },
+        "description": "Test with a longer, more complex message"
+      }
+    }
+  ]
+}
