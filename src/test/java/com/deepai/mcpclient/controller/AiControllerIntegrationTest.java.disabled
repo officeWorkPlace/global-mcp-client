@@ -1,0 +1,432 @@
+package com.deepai.mcpclient.controller;
+
+import com.deepai.mcpclient.config.AiConfiguration;
+import com.deepai.mcpclient.model.ChatRequest;
+import com.deepai.mcpclient.model.ChatResponse;
+import com.deepai.mcpclient.model.McpTool;
+import com.deepai.mcpclient.model.McpToolResult;
+import com.deepai.mcpclient.service.AiService;
+import com.deepai.mcpclient.service.McpClientService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.ai.chat.model.ChatModel;
+import reactor.core.publisher.Mono;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+/**
+ * End-to-end integration test for AI Controller REST API
+ * Tests the complete workflow from HTTP requests to AI processing to responses
+ */
+@WebFluxTest(AiController.class)
+@Import({AiConfiguration.class})
+public class AiControllerIntegrationTest {
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @MockBean
+    private AiService aiService;
+
+    @MockBean
+    private ChatModel chatModel;
+
+    @MockBean
+    private McpClientService mcpClientService;
+
+    @MockBean
+    private AiConfiguration.AiProperties aiProperties;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void testChatEndpointWithToolExecution() {
+        // Given: Mock AI service response with tool execution
+        ChatResponse mockResponse = ChatResponse.withTools(
+            "I found 3 databases on your MongoDB server: testdb, userdb, and analytics.",
+            "context-123",
+            List.of(new ChatResponse.ToolExecution(
+                "listDatabases",
+                "mongodb-server",
+                Map.of(),
+                true,
+                150L
+            ))
+        );
+
+        when(aiService.processChat(any(ChatRequest.class)))
+            .thenReturn(Mono.just(mockResponse));
+
+        // When: Send POST request to /api/ai/chat
+        ChatRequest request = new ChatRequest(
+            "Show me what databases are available",
+            "mongodb-server",
+            "context-123",
+            false
+        );
+
+        // Then: Verify successful response
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(request)
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentType(MediaType.APPLICATION_JSON)
+            .expectBody()
+            .jsonPath("$.response").isEqualTo("I found 3 databases on your MongoDB server: testdb, userdb, and analytics.")
+            .jsonPath("$.context_id").isEqualTo("context-123")
+            .jsonPath("$.tools_used").isArray()
+            .jsonPath("$.tools_used[0].tool_name").isEqualTo("listDatabases")
+            .jsonPath("$.tools_used[0].server_id").isEqualTo("mongodb-server")
+            .jsonPath("$.tools_used[0].success").isEqualTo(true)
+            .jsonPath("$.tools_used[0].execution_time_ms").isEqualTo(150)
+            .jsonPath("$.timestamp").isNotEmpty()
+            .jsonPath("$.model").isEqualTo("llama3.1:8b");
+    }
+
+    @Test
+    void testChatEndpointWithoutToolExecution() {
+        // Given: Mock AI service response without tool execution
+        ChatResponse mockResponse = ChatResponse.success(
+            "Hello! I'm here to help you interact with MCP servers. You can ask me to list databases, find documents, check server health, and more!",
+            "context-456"
+        );
+
+        when(aiService.processChat(any(ChatRequest.class)))
+            .thenReturn(Mono.just(mockResponse));
+
+        // When: Send greeting to chat endpoint
+        ChatRequest request = ChatRequest.simple("Hello there!");
+
+        // Then: Verify conversational response
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(request)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.response").value(org.hamcrest.Matchers.containsString("Hello"))
+            .jsonPath("$.context_id").isEqualTo("context-456")
+            .jsonPath("$.tools_used").isEmpty()
+            .jsonPath("$.timestamp").isNotEmpty();
+    }
+
+    @Test
+    void testChatEndpointWithError() {
+        // Given: Mock AI service returns error response
+        ChatResponse errorResponse = ChatResponse.error(
+            "I encountered an error processing your request. Please try again.",
+            "context-error"
+        );
+
+        when(aiService.processChat(any(ChatRequest.class)))
+            .thenReturn(Mono.just(errorResponse));
+
+        // When: Send request that causes error
+        ChatRequest request = ChatRequest.simple("Invalid request that causes error");
+
+        // Then: Verify error is handled gracefully
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(request)
+            .exchange()
+            .expectStatus().isOk() // Should still return 200 but with error in response
+            .expectBody()
+            .jsonPath("$.response").value(org.hamcrest.Matchers.containsString("error"))
+            .jsonPath("$.context_id").isEqualTo("context-error")
+            .jsonPath("$.metadata.error").isEqualTo(true);
+    }
+
+    @Test
+    void testChatEndpointWithInvalidRequest() {
+        // When: Send request with missing required field
+        String invalidJson = """
+            {
+                "server_id": "test-server",
+                "context_id": "test-context"
+            }
+            """;
+
+        // Then: Verify validation error
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(invalidJson)
+            .exchange()
+            .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void testChatEndpointWithTooLongMessage() {
+        // Given: Message exceeding size limit
+        String longMessage = "A".repeat(5000); // Exceeds the 4000 character limit
+        ChatRequest request = ChatRequest.simple(longMessage);
+
+        // When/Then: Verify validation error for too long message
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(request)
+            .exchange()
+            .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void testAskEndpoint() {
+        // Given: Mock AI service response for simple question
+        when(aiService.ask("What can you do?"))
+            .thenReturn(Mono.just("I can help you interact with MCP servers using natural language."));
+
+        // When: Send GET request to /api/ai/ask
+        webTestClient.get()
+            .uri("/api/ai/ask?question=What can you do?")
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentType(MediaType.APPLICATION_JSON)
+            .expectBody()
+            .jsonPath("$.question").isEqualTo("What can you do?")
+            .jsonPath("$.response").isEqualTo("I can help you interact with MCP servers using natural language.")
+            .jsonPath("$.timestamp").isNotEmpty();
+    }
+
+    @Test
+    void testAskEndpointWithError() {
+        // Given: Mock AI service throws error
+        when(aiService.ask(any(String.class)))
+            .thenReturn(Mono.error(new RuntimeException("AI service unavailable")));
+
+        // When: Send request that causes error
+        webTestClient.get()
+            .uri("/api/ai/ask?question=Test question")
+            .exchange()
+            .expectStatus().isOk() // Should still return 200 with error in response
+            .expectBody()
+            .jsonPath("$.question").isEqualTo("Test question")
+            .jsonPath("$.response").value(org.hamcrest.Matchers.containsString("error"))
+            .jsonPath("$.error").isEqualTo(true);
+    }
+
+    @Test
+    void testGetContextEndpoint() {
+        // Given: Mock conversation context
+        com.deepai.mcpclient.model.ConversationContext mockContext = 
+            new com.deepai.mcpclient.model.ConversationContext("test-context-789");
+        mockContext.addUserMessage("First message");
+        mockContext.addAssistantMessage("First response");
+        mockContext.setPreferredServerId("test-server");
+
+        when(aiService.getContext("test-context-789")).thenReturn(mockContext);
+
+        // When: Get context information
+        webTestClient.get()
+            .uri("/api/ai/context/test-context-789")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.contextId").isEqualTo("test-context-789")
+            .jsonPath("$.messageCount").isEqualTo(2)
+            .jsonPath("$.preferredServerId").isEqualTo("test-server")
+            .jsonPath("$.createdAt").isNotEmpty()
+            .jsonPath("$.lastUsed").isNotEmpty();
+    }
+
+    @Test
+    void testGetContextNotFound() {
+        // Given: Context doesn't exist
+        when(aiService.getContext("non-existent")).thenReturn(null);
+
+        // When: Try to get non-existent context
+        webTestClient.get()
+            .uri("/api/ai/context/non-existent")
+            .exchange()
+            .expectStatus().isNotFound();
+    }
+
+    @Test
+    void testGetStatsEndpoint() {
+        // Given: Mock active contexts count
+        when(aiService.getActiveContextsCount()).thenReturn(5);
+
+        // When: Get AI service statistics
+        webTestClient.get()
+            .uri("/api/ai/stats")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.activeContexts").isEqualTo(5)
+            .jsonPath("$.aiEnabled").isEqualTo(true)
+            .jsonPath("$.status").isEqualTo("operational")
+            .jsonPath("$.timestamp").isNotEmpty();
+    }
+
+    @Test
+    void testHealthCheckEndpoint() {
+        // Given: Mock healthy AI service
+        when(aiService.getActiveContextsCount()).thenReturn(3);
+
+        // When: Check AI service health
+        webTestClient.get()
+            .uri("/api/ai/health")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("healthy")
+            .jsonPath("$.aiEnabled").isEqualTo(true)
+            .jsonPath("$.activeContexts").isEqualTo(3)
+            .jsonPath("$.timestamp").isNotEmpty();
+    }
+
+    @Test
+    void testHealthCheckWithServiceError() {
+        // Given: AI service throws error during health check
+        when(aiService.getActiveContextsCount()).thenThrow(new RuntimeException("Service error"));
+
+        // When: Check health with error
+        webTestClient.get()
+            .uri("/api/ai/health")
+            .exchange()
+            .expectStatus().is5xxServerError()
+            .expectBody()
+            .jsonPath("$.status").isEqualTo("unhealthy")
+            .jsonPath("$.error").isEqualTo("Service error")
+            .jsonPath("$.timestamp").isNotEmpty();
+    }
+
+    @Test
+    void testGetAvailableToolsEndpoint() {
+        // When: Get available tools information
+        webTestClient.get()
+            .uri("/api/ai/tools")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Tool discovery is dynamic"))
+            .jsonPath("$.timestamp").isNotEmpty();
+    }
+
+    @Test
+    void testChatEndpointWithComplexRequest() {
+        // Given: Complex chat request with all fields
+        ChatResponse complexResponse = new ChatResponse(
+            "Complex operation completed successfully. Found 15 documents matching your criteria.",
+            "context-complex",
+            List.of(
+                new ChatResponse.ToolExecution("searchDocuments", "mongodb-server", 
+                    Map.of("query", "status:active", "limit", 50), true, 230L),
+                new ChatResponse.ToolExecution("formatResults", "util-server", 
+                    Map.of("format", "json"), true, 45L)
+            ),
+            LocalDateTime.now(),
+            "llama3.1:8b",
+            Map.of("query_complexity", "high", "tools_count", 2)
+        );
+
+        when(aiService.processChat(any(ChatRequest.class)))
+            .thenReturn(Mono.just(complexResponse));
+
+        // When: Send complex request
+        ChatRequest complexRequest = new ChatRequest(
+            "Find all active documents and format them as JSON",
+            "mongodb-server",
+            "context-complex",
+            false
+        );
+
+        // Then: Verify complex response structure
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(complexRequest)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.response").value(org.hamcrest.Matchers.containsString("15 documents"))
+            .jsonPath("$.context_id").isEqualTo("context-complex")
+            .jsonPath("$.tools_used").isArray()
+            .jsonPath("$.tools_used").value(org.hamcrest.Matchers.hasSize(2))
+            .jsonPath("$.tools_used[0].tool_name").isEqualTo("searchDocuments")
+            .jsonPath("$.tools_used[0].parameters.query").isEqualTo("status:active")
+            .jsonPath("$.tools_used[1].tool_name").isEqualTo("formatResults")
+            .jsonPath("$.metadata.tools_count").isEqualTo(2);
+    }
+
+    @Test
+    void testChatEndpointResponseTiming() {
+        // Given: Mock response that should arrive quickly
+        ChatResponse fastResponse = ChatResponse.success("Quick response", "timing-test");
+        
+        when(aiService.processChat(any(ChatRequest.class)))
+            .thenReturn(Mono.just(fastResponse));
+
+        // When/Then: Verify response timing (should be under 5 seconds for mocked response)
+        long startTime = System.currentTimeMillis();
+        
+        webTestClient.post()
+            .uri("/api/ai/chat")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(ChatRequest.simple("Quick test"))
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.response").isEqualTo("Quick response");
+            
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+        
+        // Verify response was reasonably fast (less than 1 second for mocked service)
+        org.junit.jupiter.api.Assertions.assertTrue(duration < 1000, 
+            "Response took too long: " + duration + "ms");
+    }
+
+    @Test
+    void testCorsHeaders() {
+        // Given: Simple request to test CORS
+        when(aiService.ask("CORS test")).thenReturn(Mono.just("CORS response"));
+
+        // When/Then: Verify CORS headers are present (if configured)
+        webTestClient.get()
+            .uri("/api/ai/ask?question=CORS test")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.response").isEqualTo("CORS response");
+        
+        // Note: Specific CORS header verification would depend on configuration
+    }
+
+    @Test
+    void testContentTypeHandling() {
+        // Given: Mock response
+        when(aiService.ask("content-type test")).thenReturn(Mono.just("Response"));
+
+        // When: Test different accept headers
+        webTestClient.get()
+            .uri("/api/ai/ask?question=content-type test")
+            .header("Accept", "application/json")
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentType(MediaType.APPLICATION_JSON);
+
+        // Test with wildcard accept
+        webTestClient.get()
+            .uri("/api/ai/ask?question=content-type test")
+            .header("Accept", "*/*")
+            .exchange()
+            .expectStatus().isOk();
+    }
+}
