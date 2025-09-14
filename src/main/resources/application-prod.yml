@@ -1,0 +1,98 @@
+# Production Environment Configuration
+# Copy this file to application-prod.yml for production deployment
+
+server:
+  port: ${PORT:8080}
+  servlet:
+    context-path: /
+  ssl:
+    enabled: ${SSL_ENABLED:false}
+    key-store: ${SSL_KEYSTORE_PATH:}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:}
+
+spring:
+  application:
+    name: global-mcp-client
+  profiles:
+    active: prod
+
+logging:
+  level:
+    com.officeworkplace: INFO
+    org.springframework.web: WARN
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/global-mcp-client.log
+    max-size: 10MB
+    max-history: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+mcp:
+  client:
+    default-timeout: ${MCP_DEFAULT_TIMEOUT:30000}
+    max-connections: ${MCP_MAX_CONNECTIONS:200}
+    connection-pool-size: ${MCP_CONNECTION_POOL_SIZE:20}
+    retry:
+      max-attempts: ${MCP_RETRY_MAX_ATTEMPTS:3}
+      backoff-multiplier: ${MCP_RETRY_BACKOFF_MULTIPLIER:2.0}
+  servers:
+    # GitHub MCP Server - Production Configuration
+    github-mcp-server:
+      type: http
+      url: "${GITHUB_MCP_SERVER_URL:https://api.githubcopilot.com/mcp/}"
+      timeout: ${GITHUB_MCP_TIMEOUT:30000}
+      enabled: ${GITHUB_MCP_ENABLED:true}
+      headers:
+        User-Agent: "Global-MCP-Client/1.0-prod"
+        Accept: "application/json"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      description: "GitHub Copilot MCP server for repository operations"
+      
+    # MongoDB MCP Server - Java Spring Boot Implementation (Primary)
+    mongo-mcp-server:
+      type: stdio
+      command: "java"
+      args: ["-jar", "${MONGO_MCP_SERVER_JAR_PATH:C:/spring-boot-ai-mongo.jar}"]
+      timeout: ${MONGO_MCP_TIMEOUT:20000}
+      enabled: ${MONGO_MCP_ENABLED:true}
+      environment:
+        MONGO_HOST: "${MONGO_HOST:localhost}"
+        MONGO_PORT: "${MONGO_PORT:27017}"
+        MONGO_DATABASE: "${MONGO_DATABASE:production}"
+        SPRING_PROFILES_ACTIVE: "${MONGO_MCP_PROFILE:production}"
+        LOGGING_LEVEL: "${MONGO_MCP_LOG_LEVEL:INFO}"
+        SERVER_PORT: "${MONGO_MCP_SERVER_PORT:0}"
+      description: "Spring Boot MongoDB MCP server for database operations"
+      
+    # Node.js MongoDB MCP Server - Alternative Implementation
+    mongodb-mcp-server:
+      type: stdio
+      command: "node"
+      args: ["${MCP_MONGODB_SERVER_PATH:/opt/mcp-servers/mongodb-server.js}"]
+      timeout: ${MONGODB_MCP_TIMEOUT:15000}
+      enabled: ${MONGODB_MCP_ENABLED:false}
+      environment:
+        NODE_ENV: "production"
+        MONGODB_URI: "${MONGODB_URI}"
+        MONGODB_DB_NAME: "${MONGODB_DB_NAME:production}"
+        MCP_SERVER_NAME: "mongodb-mcp-server"
+        LOG_LEVEL: "${MCP_MONGODB_LOG_LEVEL:warn}"
+        CONNECTION_POOL_SIZE: "${MONGODB_POOL_SIZE:10}"
+        CONNECTION_TIMEOUT: "${MONGODB_CONNECTION_TIMEOUT:10000}"
+      description: "Node.js MongoDB MCP server for database operations"
