@@ -16,7 +16,7 @@ spring:
     google:
       gemini:
         enabled: true  # Enabled with working API key
-        api-key: AIzaSyCHlUfzXkvdlDFrtF1NXdjNnlKb4YwaITk
+        api-key: ${GEMINI_API_KEY:your-gemini-api-key-here}
         chat:
           options:
             model: gemini-1.5-flash
@@ -55,9 +55,9 @@ logging:
 # AI Configuration for custom implementation
 ai:
   enabled: true
-  provider: pattern-matching
+  provider: gemini
   model: gemini-1.5-flash
-  api-key: AIzaSyCHlUfzXkvdlDFrtF1NXdjNnlKb4YwaITk
+  api-key: ${GEMINI_API_KEY:your-gemini-api-key-here}
 
 management:
   endpoints:
@@ -79,19 +79,24 @@ mcp:
       max-attempts: 2
       backoff-multiplier: 1.2
   servers:
-    mongo-mcp-server-test:
+    oracle-mcp-server:
       type: stdio
       command: "java"
       args:
-        - "-Dspring.profiles.active=mcp"
-        - "-Dspring.main.web-application-type=none"
         - "-jar"
-        - 'D:\\MCP\\MCP-workspace-bootcampToProd\\spring-boot-ai-mongo-mcp-server\\target\\spring-boot-ai-mongo-mcp-server-0.0.1-SNAPSHOT.jar'
-      timeout: 8000
+        - 'G:\\Software G\\MCP\\mcp-oracledb-server\\target\\mcp-oracledb-server-1.0.0-PRODUCTION.jar'
+        - "--spring.profiles.active=mcp-run"
+      timeout: 20000
       enabled: true
       environment:
-        SPRING_DATA_MONGODB_URI: "mongodb://localhost:27017/mcpserver"
-        MONGO_DATABASE: "mcpserver"
+        ORACLE_DB_URL: "jdbc:oracle:thin:@localhost:1521:XE"
+        ORACLE_DB_USER: "C##loan_schema"
+        ORACLE_DB_PASSWORD: "loan_data"
+        ORACLE_HOST: "localhost"
+        ORACLE_PORT: "1521"
+        ORACLE_SID: "XE"
+        MCP_TOOLS_EXPOSURE: "all"
+        ENTERPRISE_ENABLED: "true"
 
 ---
 # Server profile - disable MCP servers for REST API testing

@@ -46,3 +46,12 @@ start_*.ps1
 
 # Spring Boot
 spring-shell.log
+
+# Security - API Keys and Secrets
+*.env
+.env*
+*api-key*
+*api_key*
+*secret*
+*token*
+config/secrets/
