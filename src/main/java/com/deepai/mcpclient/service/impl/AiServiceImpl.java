@@ -50,7 +50,7 @@ public class AiServiceImpl implements AiService {
         this.chatModel = chatModel;
         this.mcpClientService = mcpClientService;
         this.intentProcessor = new IntentProcessor(mcpClientService, chatModel, new com.fasterxml.jackson.databind.ObjectMapper());
-        this.responseFormatter = new ResponseFormatter(new com.fasterxml.jackson.databind.ObjectMapper());
+        this.responseFormatter = new ResponseFormatter(new com.fasterxml.jackson.databind.ObjectMapper(), this);
         this.aiProperties = aiProperties;
     }
 
@@ -75,12 +75,14 @@ public class AiServiceImpl implements AiService {
                                 .flatMap(toolExecutions -> {
                                     String aiResponse = generateResponseWithToolResults(request.message(), intent, toolExecutions, context);
                                     context.addAssistantMessage(aiResponse);
-                                    return Mono.just(ChatResponse.withTools(aiResponse, context.getContextId(), toolExecutions));
+                                    String modelUsed = determineModelUsed(aiResponse);
+                                    return Mono.just(ChatResponse.withTools(aiResponse, context.getContextId(), toolExecutions, modelUsed));
                                 });
                     } else {
                         String aiResponse = generateSimpleResponse(request.message(), context);
                         context.addAssistantMessage(aiResponse);
-                        return Mono.just(ChatResponse.success(aiResponse, context.getContextId()));
+                        String modelUsed = determineModelUsed(aiResponse);
+                        return Mono.just(ChatResponse.success(aiResponse, context.getContextId(), modelUsed));
                     }
                 })
                 .doOnSuccess(response -> logger.info("AI chat processed successfully for context: {}", response.contextId()))
@@ -217,6 +219,25 @@ public class AiServiceImpl implements AiService {
             logger.error("Error generating simple AI response: {}", e.getMessage(), e);
             return "I'm here to help you interact with MCP servers. You can ask me to list databases, find documents, check server health, and more!";
         }
+    }
+    
+    /**
+     * Determine which model was used based on the response content
+     */
+    private String determineModelUsed(String response) {
+        // If response contains tool commands or pattern-matching keywords, it's pattern matching
+        if (response != null && (
+            response.startsWith("tool exec") || 
+            response.equals("help") || 
+            response.equals("clear") || 
+            response.equals("exit") ||
+            response.contains("server list") ||
+            response.equals("tool all")
+        )) {
+            return "pattern-matching";
+        }
+        // Otherwise, assume it came from Gemini (or at least attempted to)
+        return "gemini-1.5-flash";
     }
 
     /**

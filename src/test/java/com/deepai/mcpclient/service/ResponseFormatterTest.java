@@ -5,11 +5,14 @@ import com.deepai.mcpclient.model.McpContent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Unit test for ResponseFormatter to verify conversion of various 
@@ -19,11 +22,17 @@ public class ResponseFormatterTest {
 
     private ResponseFormatter responseFormatter;
     private ObjectMapper objectMapper;
+    private AiService aiService;
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        responseFormatter = new ResponseFormatter(objectMapper);
+        aiService = Mockito.mock(AiService.class);
+        
+        // Mock AI service to return fallback behavior (as if AI is not available)
+        Mockito.when(aiService.ask(Mockito.anyString())).thenReturn(Mono.just(""));
+        
+        responseFormatter = new ResponseFormatter(objectMapper, aiService);
     }
 
     @Test

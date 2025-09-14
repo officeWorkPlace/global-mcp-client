@@ -99,6 +99,18 @@
         </dependency>
         -->
 
+        <!-- PicoCLI for Command Line Interface -->
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.7.5</version>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli-spring-boot-starter</artifactId>
+            <version>4.7.5</version>
+        </dependency>
+
         <!-- Logging -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
@@ -141,6 +153,28 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- Main web application class for JAR -->
+                    <mainClass>com.deepai.mcpclient.GlobalMcpClientApplication</mainClass>
+                </configuration>
+                <executions>
+                    <!-- Default execution for CLI -->
+                    <execution>
+                        <id>cli-jar</id>
+                        <configuration>
+                            <mainClass>com.deepai.mcpclient.cli.McpCliApplication</mainClass>
+                            <classifier>cli</classifier>
+                        </configuration>
+                    </execution>
+                    <!-- Server execution -->
+                    <execution>
+                        <id>server-jar</id>
+                        <configuration>
+                            <mainClass>com.deepai.mcpclient.server.McpServerApplication</mainClass>
+                            <classifier>server</classifier>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -1,0 +1,41 @@
+# CLI Profile - No web server needed
+spring:
+  main:
+    web-application-type: none
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration
+      - org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration
+      - org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration
+      - org.springframework.boot.autoconfigure.web.embedded.EmbeddedWebServerFactoryCustomizerAutoConfiguration
+
+# CLI Application Settings
+mcpcli:
+  api:
+    # Default MCP server URL
+    url: http://localhost:8081
+    # Connection timeout in milliseconds
+    timeout: 30000
+    
+  # Default output format for CLI commands
+  # Options: table, json, yaml
+  default-format: table
+  
+  # Enable verbose output by default
+  verbose: false
+  
+  # AI Assistant Settings
+  ai:
+    # Default context timeout (how long to remember conversation)
+    context-timeout: 300000  # 5 minutes
+    # Maximum message length
+    max-message-length: 2000
+    
+  # User Experience Settings
+  ux:
+    # Show helpful tips and examples
+    show-tips: true
+    # Use colors in output (auto-detected for Windows)
+    colors: auto
+    # Show progress bars for long operations
+    show-progress: true

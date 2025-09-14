@@ -9,19 +9,19 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Universal Response Formatter for Global MCP Client
+ * AI-Powered Response Formatter for Global MCP Client
  * 
- * Converts technical MCP tool results into human-readable format
+ * Converts technical MCP tool results into beautiful human-readable format using AI
  * Works with ANY MCP server type and ANY tool response:
- * - Database query results
- * - File system operations
- * - API service responses  
- * - Weather data
- * - Git operations
- * - Email services
- * - Any other MCP server response
+ * - Database query results → Beautiful tables and summaries
+ * - File system operations → Clear status reports
+ * - API service responses → Formatted data displays
+ * - Weather data → Natural language descriptions
+ * - Git operations → User-friendly status updates
+ * - Email services → Readable message summaries
+ * - Any other MCP server response → AI-enhanced formatting
  * 
- * No hardcoded assumptions - completely adaptive
+ * Uses Gemini AI for intelligent formatting and natural language descriptions
  */
 @Component
 public class ResponseFormatter {
@@ -29,9 +29,11 @@ public class ResponseFormatter {
     private static final Logger logger = LoggerFactory.getLogger(ResponseFormatter.class);
     
     private final ObjectMapper objectMapper;
+    private final AiService aiService;
 
-    public ResponseFormatter(ObjectMapper objectMapper) {
+    public ResponseFormatter(ObjectMapper objectMapper, AiService aiService) {
         this.objectMapper = objectMapper;
+        this.aiService = aiService;
     }
 
     /**
@@ -192,40 +194,81 @@ public class ResponseFormatter {
     }
 
     /**
-     * Format JSON arrays - could be database results, file lists, etc.
+     * Format JSON arrays using AI for beautiful human-readable output
      */
     private String formatJsonArray(JsonNode arrayNode, String toolName) {
+        int size = arrayNode.size();
+        if (size == 0) {
+            return "🔍 No results found.";
+        }
+
+        try {
+            // Convert to JSON string for AI processing
+            String jsonData = objectMapper.writeValueAsString(arrayNode);
+            
+            // Create AI prompt for formatting
+            String aiPrompt = String.format(
+                "Format this JSON data from a '%s' operation into a beautiful, human-readable format. " +
+                "Use appropriate emojis, clear headers, and make it conversational and easy to understand. " +
+                "If it's database data, format it like a nice table or list. " +
+                "If it's file data, show it clearly. " +
+                "Make it friendly and professional:\n\n%s", 
+                toolName, jsonData
+            );
+            
+            logger.info("🤖 Using AI to format {} results with {} items", toolName, size);
+            
+            // Get AI-formatted response
+            String aiFormatted = aiService.ask(aiPrompt).block();
+            
+            if (aiFormatted != null && !aiFormatted.trim().isEmpty()) {
+                return "🤖 " + aiFormatted;
+            } else {
+                logger.warn("AI formatting returned empty result, falling back to standard formatting");
+                return formatJsonArrayFallback(arrayNode, toolName);
+            }
+            
+        } catch (Exception e) {
+            logger.warn("AI formatting failed for {}: {}, falling back to standard formatting", toolName, e.getMessage());
+            return formatJsonArrayFallback(arrayNode, toolName);
+        }
+    }
+
+    /**
+     * Fallback formatting when AI is not available
+     */
+    private String formatJsonArrayFallback(JsonNode arrayNode, String toolName) {
         StringBuilder formatted = new StringBuilder();
         
         int size = arrayNode.size();
         if (size == 0) {
-            return "No results found.";
+            return "🔍 No results found.";
         }
 
         // Detect if it looks like a list of records/objects
         if (size > 0 && arrayNode.get(0).isObject()) {
-            formatted.append(String.format("Found %d result%s:\n\n", size, size == 1 ? "" : "s"));
+            formatted.append(String.format("📊 Found %d result%s:\n\n", size, size == 1 ? "" : "s"));
             
             int displayCount = Math.min(size, 10); // Limit display to first 10 items
             for (int i = 0; i < displayCount; i++) {
                 JsonNode item = arrayNode.get(i);
-                formatted.append(String.format("%d. %s\n", i + 1, formatJsonObjectInline(item)));
+                formatted.append(String.format("  %d. %s\n", i + 1, formatJsonObjectInline(item)));
             }
             
             if (size > displayCount) {
-                formatted.append(String.format("... and %d more result%s\n", 
+                formatted.append(String.format("  ... and %d more result%s\n", 
                     size - displayCount, (size - displayCount) == 1 ? "" : "s"));
             }
         } else {
             // Simple array of values
-            formatted.append(String.format("Results (%d items):\n", size));
+            formatted.append(String.format("📋 Results (%d items):\n", size));
             int displayCount = Math.min(size, 20);
             for (int i = 0; i < displayCount; i++) {
-                formatted.append("• ").append(arrayNode.get(i).asText()).append("\n");
+                formatted.append("  • ").append(arrayNode.get(i).asText()).append("\n");
             }
             
             if (size > displayCount) {
-                formatted.append(String.format("... and %d more items\n", size - displayCount));
+                formatted.append(String.format("  ... and %d more items\n", size - displayCount));
             }
         }
 
@@ -233,9 +276,45 @@ public class ResponseFormatter {
     }
 
     /**
-     * Format JSON objects - could be server status, single records, etc.
+     * Format JSON objects using AI for beautiful human-readable output
      */
     private String formatJsonObject(JsonNode objectNode, String toolName) {
+        try {
+            // Convert to JSON string for AI processing
+            String jsonData = objectMapper.writeValueAsString(objectNode);
+            
+            // Create AI prompt for formatting
+            String aiPrompt = String.format(
+                "Format this JSON object from a '%s' operation into a beautiful, human-readable format. " +
+                "Use appropriate emojis, clear labels, and make it conversational and easy to understand. " +
+                "If it's status information, show it clearly. " +
+                "If it's configuration data, format it nicely. " +
+                "Make it friendly and professional:\n\n%s", 
+                toolName, jsonData
+            );
+            
+            logger.info("🤖 Using AI to format {} object result", toolName);
+            
+            // Get AI-formatted response
+            String aiFormatted = aiService.ask(aiPrompt).block();
+            
+            if (aiFormatted != null && !aiFormatted.trim().isEmpty()) {
+                return "🤖 " + aiFormatted;
+            } else {
+                logger.warn("AI formatting returned empty result, falling back to standard formatting");
+                return formatJsonObjectFallback(objectNode, toolName);
+            }
+            
+        } catch (Exception e) {
+            logger.warn("AI formatting failed for {}: {}, falling back to standard formatting", toolName, e.getMessage());
+            return formatJsonObjectFallback(objectNode, toolName);
+        }
+    }
+
+    /**
+     * Fallback JSON object formatting when AI is not available
+     */
+    private String formatJsonObjectFallback(JsonNode objectNode, String toolName) {
         // Try to detect common object types and format appropriately
         if (hasStatusFields(objectNode)) {
             return formatStatusObject(objectNode);

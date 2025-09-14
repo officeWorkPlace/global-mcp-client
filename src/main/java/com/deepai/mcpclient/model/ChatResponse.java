@@ -52,12 +52,19 @@ public record ChatResponse(
      * Create a simple success response
      */
     public static ChatResponse success(String response, String contextId) {
+        return success(response, contextId, "gemini-1.5-flash");
+    }
+    
+    /**
+     * Create a simple success response with model
+     */
+    public static ChatResponse success(String response, String contextId, String model) {
         return new ChatResponse(
             response, 
             contextId, 
             List.of(), 
             LocalDateTime.now(), 
-            "llama3.1:8b", 
+            model, 
             Map.of()
         );
     }
@@ -66,12 +73,19 @@ public record ChatResponse(
      * Create a response with tool executions
      */
     public static ChatResponse withTools(String response, String contextId, List<ToolExecution> tools) {
+        return withTools(response, contextId, tools, "gemini-1.5-flash");
+    }
+    
+    /**
+     * Create a response with tool executions and model
+     */
+    public static ChatResponse withTools(String response, String contextId, List<ToolExecution> tools, String model) {
         return new ChatResponse(
             response, 
             contextId, 
             tools, 
             LocalDateTime.now(), 
-            "llama3.1:8b", 
+            model, 
             Map.of("tools_count", tools.size())
         );
     }
@@ -80,12 +94,19 @@ public record ChatResponse(
      * Create an error response
      */
     public static ChatResponse error(String errorMessage, String contextId) {
+        return error(errorMessage, contextId, "pattern-matching");
+    }
+    
+    /**
+     * Create an error response with model
+     */
+    public static ChatResponse error(String errorMessage, String contextId, String model) {
         return new ChatResponse(
             errorMessage, 
             contextId, 
             List.of(), 
             LocalDateTime.now(), 
-            "llama3.1:8b", 
+            model, 
             Map.of("error", true)
         );
     }
