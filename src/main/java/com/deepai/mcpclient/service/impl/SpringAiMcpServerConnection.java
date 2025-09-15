@@ -21,6 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.time.Duration;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  * Spring AI 1.0.1 Native MCP Server Connection Implementation.
@@ -38,6 +41,7 @@ public class SpringAiMcpServerConnection implements McpServerConnection {
     private final AtomicLong requestIdCounter = new AtomicLong(1);
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Sinks.Many<McpMessage> notificationSink = Sinks.many().multicast().onBackpressureBuffer();
+    private final ScheduledExecutorService timeoutExecutor;
     
     private Process process;
     private BufferedWriter processStdin;
@@ -50,6 +54,8 @@ public class SpringAiMcpServerConnection implements McpServerConnection {
         this.serverId = serverId;
         this.config = config;
         this.objectMapper = objectMapper;
+        this.timeoutExecutor = Executors.newScheduledThreadPool(2, 
+            r -> new Thread(r, "spring-ai-mcp-timeout-" + serverId));
     }
     
     @Override
@@ -354,6 +360,28 @@ public class SpringAiMcpServerConnection implements McpServerConnection {
             
             Long requestId = ((Number) request.get("id")).longValue();
             CompletableFuture<JsonNode> future = new CompletableFuture<>();
+            
+            // Enhanced request monitoring and timeout handling
+            long timeoutMs = Math.max(config.timeout(), 15000);
+            ScheduledFuture<?> timeoutTask = timeoutExecutor.schedule(() -> {
+                CompletableFuture<JsonNode> expiredFuture = pendingRequests.remove(requestId);
+                if (expiredFuture != null && !expiredFuture.isDone()) {
+                    logger.warn("Request {} timed out after {}ms for Spring AI MCP server: {}", requestId, timeoutMs, serverId);
+                    expiredFuture.completeExceptionally(new RuntimeException(
+                        String.format("Request timed out after %dms for Spring AI MCP server: %s", timeoutMs, serverId)));
+                }
+            }, timeoutMs, TimeUnit.MILLISECONDS);
+            
+            // Store future with timeout cancellation
+            future.whenComplete((result, throwable) -> {
+                timeoutTask.cancel(false);
+                if (throwable != null) {
+                    logger.debug("Request {} completed with error for Spring AI MCP server {}: {}", requestId, serverId, throwable.getMessage());
+                } else {
+                    logger.debug("Request {} completed successfully for Spring AI MCP server: {}", requestId, serverId);
+                }
+            });
+            
             pendingRequests.put(requestId, future);
             
             try {
@@ -366,15 +394,19 @@ public class SpringAiMcpServerConnection implements McpServerConnection {
                     processStdin.flush();
                 }
                 
-                // Wait for response with longer timeout for Spring AI
-                long timeoutMs = Math.max(config.timeout(), 15000); // At least 15 seconds
-                JsonNode response = future.get(timeoutMs, TimeUnit.MILLISECONDS);
-                
-                logger.debug("Received response from Spring AI MCP server: {}", response);
-                return response;
+                // Enhanced error handling for failed requests
+                try {
+                    JsonNode response = future.get();
+                    logger.debug("Received response from Spring AI MCP server: {}", response);
+                    return response;
+                } catch (Exception e) {
+                    logger.error("Failed to get response for request {} from Spring AI MCP server {}: {}", requestId, serverId, e.getMessage());
+                    throw new RuntimeException("Failed to send request to Spring AI MCP server: " + e.getMessage(), e);
+                }
                 
             } catch (Exception e) {
                 pendingRequests.remove(requestId);
+                logger.error("Exception during request processing for Spring AI MCP server {}: {}", serverId, e.getMessage(), e);
                 throw new RuntimeException("Failed to send request to Spring AI MCP server: " + e.getMessage(), e);
             }
         });
@@ -393,11 +425,20 @@ public class SpringAiMcpServerConnection implements McpServerConnection {
                     logger.debug("Received message from Spring AI MCP server: {}", message);
                     
                     if (message.has("id")) {
-                        // Response message
+                        // Enhanced response message handling
                         Long requestId = message.get("id").asLong();
                         CompletableFuture<JsonNode> future = pendingRequests.remove(requestId);
                         if (future != null) {
-                            future.complete(message);
+                            if (message.has("error")) {
+                                JsonNode error = message.get("error");
+                                String errorMsg = error.has("message") ? error.get("message").asText() : "Unknown error";
+                                logger.warn("Received error response for request {} from Spring AI MCP server {}: {}", requestId, serverId, errorMsg);
+                                future.completeExceptionally(new RuntimeException("MCP server error: " + errorMsg));
+                            } else {
+                                future.complete(message);
+                            }
+                        } else {
+                            logger.warn("Received response for unknown request {} from Spring AI MCP server: {}", requestId, serverId);
                         }
                     } else if (message.has("method")) {
                         // Notification message - convert to McpMessage
@@ -439,45 +480,104 @@ public class SpringAiMcpServerConnection implements McpServerConnection {
         return Mono.fromRunnable(() -> {
             logger.info("Closing Spring AI MCP server connection: {}", serverId);
             
-            if (readerThread != null) {
-                readerThread.interrupt();
-            }
-            if (stderrThread != null) {
-                stderrThread.interrupt();
-            }
-            
-            if (processStdin != null) {
-                try {
-                    processStdin.close();
-                } catch (IOException e) {
-                    logger.warn("Error closing process stdin: {}", e.getMessage());
+            // Enhanced connection cleanup and resource management
+            try {
+                // Cancel all pending requests with proper error handling
+                int pendingCount = pendingRequests.size();
+                if (pendingCount > 0) {
+                    logger.info("Cancelling {} pending requests for Spring AI MCP server: {}", pendingCount, serverId);
+                    pendingRequests.values().forEach(future -> {
+                        if (!future.isDone()) {
+                            future.completeExceptionally(new RuntimeException(
+                                "Connection closed while request was pending for server: " + serverId));
+                        }
+                    });
+                    pendingRequests.clear();
                 }
-            }
-            
-            if (processStdout != null) {
-                try {
-                    processStdout.close();
-                } catch (IOException e) {
-                    logger.warn("Error closing process stdout: {}", e.getMessage());
+                
+                // Shutdown timeout executor
+                if (timeoutExecutor != null && !timeoutExecutor.isShutdown()) {
+                    logger.debug("Shutting down timeout executor for Spring AI MCP server: {}", serverId);
+                    timeoutExecutor.shutdown();
+                    try {
+                        if (!timeoutExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                            logger.warn("Timeout executor did not terminate gracefully for server: {}", serverId);
+                            timeoutExecutor.shutdownNow();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        timeoutExecutor.shutdownNow();
+                    }
                 }
-            }
-            
-            if (process != null) {
-                process.destroy();
-                try {
-                    if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                
+                // Interrupt threads safely
+                if (readerThread != null && readerThread.isAlive()) {
+                    logger.debug("Interrupting reader thread for Spring AI MCP server: {}", serverId);
+                    readerThread.interrupt();
+                    try {
+                        readerThread.join(2000); // Wait up to 2 seconds
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                
+                if (stderrThread != null && stderrThread.isAlive()) {
+                    logger.debug("Interrupting stderr thread for Spring AI MCP server: {}", serverId);
+                    stderrThread.interrupt();
+                    try {
+                        stderrThread.join(2000); // Wait up to 2 seconds
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                
+                // Close I/O streams with proper error handling
+                if (processStdin != null) {
+                    try {
+                        processStdin.close();
+                        logger.debug("Process stdin closed for Spring AI MCP server: {}", serverId);
+                    } catch (IOException e) {
+                        logger.warn("Error closing process stdin for server {}: {}", serverId, e.getMessage());
+                    }
+                }
+                
+                if (processStdout != null) {
+                    try {
+                        processStdout.close();
+                        logger.debug("Process stdout closed for Spring AI MCP server: {}", serverId);
+                    } catch (IOException e) {
+                        logger.warn("Error closing process stdout for server {}: {}", serverId, e.getMessage());
+                    }
+                }
+                
+                // Terminate process with enhanced error handling
+                if (process != null && process.isAlive()) {
+                    logger.debug("Terminating process for Spring AI MCP server: {}", serverId);
+                    process.destroy();
+                    try {
+                        if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                            logger.warn("Process did not terminate gracefully for server {}, forcing termination", serverId);
+                            process.destroyForcibly();
+                            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                                logger.error("Failed to forcibly terminate process for server: {}", serverId);
+                            }
+                        } else {
+                            logger.debug("Process terminated successfully for Spring AI MCP server: {}", serverId);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        logger.warn("Interrupted while waiting for process termination for server: {}", serverId);
                         process.destroyForcibly();
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
+                
+                // Complete notification sink
+                notificationSink.tryEmitComplete();
+                logger.info("Spring AI MCP server connection closed successfully: {}", serverId);
+                
+            } catch (Exception e) {
+                logger.error("Error during connection cleanup for Spring AI MCP server {}: {}", serverId, e.getMessage(), e);
             }
-            
-            pendingRequests.values().forEach(future -> 
-                future.completeExceptionally(new RuntimeException("Connection closed")));
-            pendingRequests.clear();
-            
-            notificationSink.tryEmitComplete();
         });
     }
     

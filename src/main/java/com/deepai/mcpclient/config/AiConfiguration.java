@@ -17,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestTemplate;
 import reactor.core.publisher.Flux;
+import jakarta.annotation.PostConstruct;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class AiConfiguration {
     @Value("${spring.ai.ollama.base-url:http://localhost:11434}")
     private String ollamaBaseUrl;
     
-    @Value("${spring.ai.google.gemini.api-key:}")
+    @Value("${GEMINI_API_KEY:${ai.api-key:your-gemini-api-key-here}}")
     private String geminiApiKey;
     
     @Value("${ai.provider:gemini}")
@@ -58,13 +59,39 @@ public class AiConfiguration {
             setReadTimeout(15000);   // 15 seconds read timeout
         }});
     }
+    
+    @PostConstruct
+    public void debugConfiguration() {
+        logger.info("🔍 AI Configuration Debug:");
+        logger.info("  - Provider: '{}'", aiProvider);
+        logger.info("  - Model: '{}'", aiModel);
+        logger.info("  - API Key length: {}", geminiApiKey != null ? geminiApiKey.length() : 0);
+        logger.info("  - API Key prefix: '{}'", geminiApiKey != null && geminiApiKey.length() >= 10 ? geminiApiKey.substring(0, 10) + "..." : "null/short");
+        logger.info("  - API Key equals placeholder: {}", "your-gemini-api-key-here".equals(geminiApiKey));
+        
+        // Check environment variable directly
+        String envKey = System.getenv("GEMINI_API_KEY");
+        logger.info("  - Environment GEMINI_API_KEY present: {}", envKey != null && !envKey.isEmpty());
+        logger.info("  - Environment GEMINI_API_KEY prefix: '{}'", envKey != null && envKey.length() >= 10 ? envKey.substring(0, 10) + "..." : "null/short");
+        
+        // Check system property
+        String sysProp = System.getProperty("ai.api-key", "not-set");
+        logger.info("  - System property ai.api-key: '{}'", sysProp);
+        
+        if (geminiApiKey != null && envKey != null && !geminiApiKey.equals(envKey)) {
+            logger.warn("⚠️ MISMATCH: Injected API key differs from environment variable!");
+            logger.warn("  Injected: '{}...'", geminiApiKey.length() >= 10 ? geminiApiKey.substring(0, 10) : geminiApiKey);
+            logger.warn("  Environment: '{}...'", envKey.length() >= 10 ? envKey.substring(0, 10) : envKey);
+        }
+    }
 
     /**
-     * ChatModel bean with Ollama integration and fallback to pattern matching
+     * ChatModel bean with Gemini API integration and fallback to pattern matching
      */
     @Bean
     public ChatModel chatModel() {
-        logger.info("Configuring ChatModel with Ollama integration and pattern matching fallback (Spring AI 1.0.1)");
+        logger.info("Configuring ChatModel with Gemini API integration - Provider: {}, Model: {}, API Key Present: {}", 
+            aiProvider, aiModel, (geminiApiKey != null && !geminiApiKey.isEmpty()));
         return new CustomChatModelImpl();
     }
 
@@ -115,9 +142,29 @@ public class AiConfiguration {
             try {
                 logger.info("🔧 Gemini API call - API Key present: {}, Provider: {}, Model: {}", 
                     (geminiApiKey != null && !geminiApiKey.isEmpty()), aiProvider, aiModel);
-                    
-                if (geminiApiKey == null || geminiApiKey.isEmpty()) {
-                    throw new RuntimeException("Gemini API key is not configured");
+                
+                // Debug logging for API key
+                logger.debug("🔍 Debug - API Key value: '{}', length: {}", 
+                    geminiApiKey != null ? geminiApiKey.substring(0, Math.min(10, geminiApiKey.length())) + "..." : "null",
+                    geminiApiKey != null ? geminiApiKey.length() : 0);
+                logger.debug("🔍 Debug - API Key equals placeholder: {}", "your-gemini-api-key-here".equals(geminiApiKey));
+                
+                // Validate API key format
+                if (geminiApiKey == null || geminiApiKey.isEmpty() || "your-gemini-api-key-here".equals(geminiApiKey)) {
+                    logger.error("❌ API Key validation failed - null: {}, empty: {}, placeholder: {}", 
+                        geminiApiKey == null, 
+                        geminiApiKey != null && geminiApiKey.isEmpty(),
+                        "your-gemini-api-key-here".equals(geminiApiKey));
+                    throw new RuntimeException("Gemini API key is not properly configured. Please set GEMINI_API_KEY environment variable.");
+                }
+                
+                if (!geminiApiKey.startsWith("AIza")) {
+                    throw new RuntimeException("Invalid Gemini API key format. API key should start with 'AIza'.");
+                }
+                
+                // Validate prompt
+                if (promptText == null || promptText.trim().isEmpty()) {
+                    throw new RuntimeException("Empty prompt provided to Gemini API");
                 }
                 
                 HttpHeaders headers = new HttpHeaders();
@@ -150,18 +197,66 @@ public class AiConfiguration {
                 
                 logger.info("⏱️ Gemini API call completed in {}ms", duration);
                 
-                if (response != null && response.containsKey("candidates")) {
+                // Enhanced response processing with better error handling
+                if (response == null) {
+                    throw new RuntimeException("Null response from Gemini API");
+                }
+                
+                // Check for API errors
+                if (response.containsKey("error")) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> error = (Map<String, Object>) response.get("error");
+                    String errorMessage = (String) error.get("message");
+                    Integer errorCode = (Integer) error.get("code");
+                    logger.error("Gemini API error - Code: {}, Message: {}", errorCode, errorMessage);
+                    
+                    if (errorCode != null) {
+                        switch (errorCode) {
+                            case 401:
+                                throw new RuntimeException("Gemini API authentication failed. Please check your API key.");
+                            case 403:
+                                throw new RuntimeException("Gemini API access forbidden. Check API key permissions and quota.");
+                            case 429:
+                                throw new RuntimeException("Gemini API rate limit exceeded. Please try again later.");
+                            case 400:
+                                throw new RuntimeException("Invalid request to Gemini API: " + errorMessage);
+                            default:
+                                throw new RuntimeException("Gemini API error (" + errorCode + "): " + errorMessage);
+                        }
+                    }
+                    throw new RuntimeException("Gemini API error: " + errorMessage);
+                }
+                
+                // Process successful response
+                if (response.containsKey("candidates")) {
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
-                    if (!candidates.isEmpty()) {
+                    
+                    if (candidates.isEmpty()) {
+                        throw new RuntimeException("No candidates in Gemini API response");
+                    }
+                    
+                    Map<String, Object> candidate = candidates.get(0);
+                    
+                    // Check finish reason
+                    String finishReason = (String) candidate.get("finishReason");
+                    if (finishReason != null && !"STOP".equals(finishReason)) {
+                        logger.warn("Gemini API response finished with reason: {}", finishReason);
+                        if ("SAFETY".equals(finishReason)) {
+                            throw new RuntimeException("Gemini API blocked response due to safety filters");
+                        }
+                    }
+                    
+                    // Extract content
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> candidateContent = (Map<String, Object>) candidate.get("content");
+                    if (candidateContent != null && candidateContent.containsKey("parts")) {
                         @SuppressWarnings("unchecked")
-                        Map<String, Object> content2 = (Map<String, Object>) candidates.get(0).get("content");
-                        @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> parts = (List<Map<String, Object>>) content2.get("parts");
+                        List<Map<String, Object>> parts = (List<Map<String, Object>>) candidateContent.get("parts");
                         if (!parts.isEmpty()) {
                             String responseText = (String) parts.get(0).get("text");
                             if (responseText != null && !responseText.trim().isEmpty()) {
-                                logger.info("✅ Gemini API responded successfully");
+                                logger.info("✅ Gemini API responded successfully with {} characters", responseText.length());
                                 AssistantMessage assistantMessage = new AssistantMessage(responseText.trim());
                                 Generation generation = new Generation(assistantMessage);
                                 return new ChatResponse(List.of(generation));
@@ -169,7 +264,22 @@ public class AiConfiguration {
                         }
                     }
                 }
-                throw new RuntimeException("Empty response from Gemini API");
+                
+                throw new RuntimeException("Invalid or empty response structure from Gemini API");
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                logger.error("❌ Gemini API HTTP error - Status: {}, Body: {}", e.getStatusCode(), e.getResponseBodyAsString());
+                if (e.getStatusCode().value() == 401) {
+                    throw new RuntimeException("Gemini API authentication failed. Please verify your API key.", e);
+                } else if (e.getStatusCode().value() == 403) {
+                    throw new RuntimeException("Gemini API access denied. Check API key permissions and billing.", e);
+                } else if (e.getStatusCode().value() == 429) {
+                    throw new RuntimeException("Gemini API rate limit exceeded. Please try again later.", e);
+                } else {
+                    throw new RuntimeException("Gemini API HTTP error (" + e.getStatusCode() + "): " + e.getResponseBodyAsString(), e);
+                }
+            } catch (org.springframework.web.client.ResourceAccessException e) {
+                logger.error("❌ Gemini API network error: {}", e.getMessage());
+                throw new RuntimeException("Network error connecting to Gemini API. Check internet connection.", e);
             } catch (Exception e) {
                 logger.error("❌ Gemini API call failed: {}", e.getMessage(), e);
                 throw new RuntimeException("Gemini API call failed: " + e.getMessage(), e);

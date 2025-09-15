@@ -46,8 +46,10 @@ spring:
 
 logging:
   level:
-    com.deepai: INFO
+    com.deepai: DEBUG
     org.springframework.web: WARN
+    org.springframework.core.env: DEBUG
+    org.springframework.beans.factory.annotation: DEBUG
     root: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -83,9 +85,17 @@ mcp:
       type: stdio
       command: "java"
       args:
+        - "-Dlogging.level.root=ERROR"
+        - "-Dlogging.level.com.oracle.mcp=ERROR"
+        - "-Dspring.main.banner-mode=off"
+        - "-Dspring.output.ansi.enabled=never"
+        - "-Djava.awt.headless=true"
         - "-jar"
         - 'G:\\Software G\\MCP\\mcp-oracledb-server\\target\\mcp-oracledb-server-1.0.0-PRODUCTION.jar'
         - "--spring.profiles.active=mcp-run"
+        - "--logging.level.root=ERROR"
+        - "--logging.pattern.console="
+        - "--spring.main.banner-mode=off"
       timeout: 20000
       enabled: true
       environment:
@@ -97,6 +107,8 @@ mcp:
         ORACLE_SID: "XE"
         MCP_TOOLS_EXPOSURE: "all"
         ENTERPRISE_ENABLED: "true"
+        SPRING_MAIN_BANNER_MODE: "off"
+        LOGGING_LEVEL_ROOT: "ERROR"
 
 ---
 # Server profile - disable MCP servers for REST API testing
