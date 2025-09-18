@@ -8,6 +8,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -18,6 +19,10 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestTemplate;
 import reactor.core.publisher.Flux;
 import jakarta.annotation.PostConstruct;
+import com.deepai.mcpclient.service.GeminiCircuitBreaker;
+import com.deepai.mcpclient.service.GeminiRetryService;
+import com.deepai.mcpclient.service.GeminiModelSelector;
+// Removed imports for services that caused dependency injection issues
 
 import java.util.List;
 import java.util.Map;
@@ -45,7 +50,18 @@ public class AiConfiguration {
     private String aiModel;
     
     private final RestTemplate restTemplate;
-    
+
+    @Autowired
+    private GeminiCircuitBreaker circuitBreaker;
+
+    @Autowired
+    private GeminiRetryService retryService;
+
+    @Autowired
+    private GeminiModelSelector modelSelector;
+
+    // Remove problematic @Autowired fields that can cause circular dependencies
+
     public AiConfiguration() {
         // Configure RestTemplate with timeouts
         this.restTemplate = new RestTemplate();
@@ -65,23 +81,25 @@ public class AiConfiguration {
         logger.info("🔍 AI Configuration Debug:");
         logger.info("  - Provider: '{}'", aiProvider);
         logger.info("  - Model: '{}'", aiModel);
-        logger.info("  - API Key length: {}", geminiApiKey != null ? geminiApiKey.length() : 0);
-        logger.info("  - API Key prefix: '{}'", geminiApiKey != null && geminiApiKey.length() >= 10 ? geminiApiKey.substring(0, 10) + "..." : "null/short");
-        logger.info("  - API Key equals placeholder: {}", "your-gemini-api-key-here".equals(geminiApiKey));
-        
-        // Check environment variable directly
+        logger.info("  - API Key configured: {}", geminiApiKey != null && !geminiApiKey.trim().isEmpty() && !"not-set".equals(geminiApiKey));
+        logger.info("  - API Key is placeholder: {}", "your-gemini-api-key-here".equals(geminiApiKey));
+
+        // Check environment variable directly (without exposing values)
         String envKey = System.getenv("GEMINI_API_KEY");
-        logger.info("  - Environment GEMINI_API_KEY present: {}", envKey != null && !envKey.isEmpty());
-        logger.info("  - Environment GEMINI_API_KEY prefix: '{}'", envKey != null && envKey.length() >= 10 ? envKey.substring(0, 10) + "..." : "null/short");
-        
-        // Check system property
+        logger.info("  - Environment GEMINI_API_KEY present: {}", envKey != null && !envKey.trim().isEmpty());
+
+        // Check system property (without exposing values)
         String sysProp = System.getProperty("ai.api-key", "not-set");
-        logger.info("  - System property ai.api-key: '{}'", sysProp);
-        
+        logger.info("  - System property ai.api-key configured: {}", !"not-set".equals(sysProp));
+
         if (geminiApiKey != null && envKey != null && !geminiApiKey.equals(envKey)) {
             logger.warn("⚠️ MISMATCH: Injected API key differs from environment variable!");
-            logger.warn("  Injected: '{}...'", geminiApiKey.length() >= 10 ? geminiApiKey.substring(0, 10) : geminiApiKey);
-            logger.warn("  Environment: '{}...'", envKey.length() >= 10 ? envKey.substring(0, 10) : envKey);
+            logger.warn("  This may indicate a configuration issue. Check environment variables and system properties.");
+        }
+
+        // Validate API key format without exposing content
+        if (geminiApiKey != null && !geminiApiKey.startsWith("AIza") && !"not-set".equals(geminiApiKey) && !"your-gemini-api-key-here".equals(geminiApiKey)) {
+            logger.warn("⚠️ API key format may be invalid - Gemini API keys typically start with 'AIza'");
         }
     }
 
@@ -139,9 +157,26 @@ public class AiConfiguration {
         }
         
         private ChatResponse callGemini(String promptText) {
+            return retryService.executeWithRetry(() -> {
+                try {
+                    return circuitBreaker.execute(() -> {
+                        return performGeminiApiCall(promptText);
+                    });
+                } catch (Exception e) {
+                    logger.error("❌ Gemini API call failed via circuit breaker: {}", e.getMessage());
+                    throw new RuntimeException("Gemini API call failed: " + e.getMessage(), e);
+                }
+            }, "Gemini API Call");
+        }
+
+        private ChatResponse performGeminiApiCall(String promptText) {
             try {
-                logger.info("🔧 Gemini API call - API Key present: {}, Provider: {}, Model: {}", 
-                    (geminiApiKey != null && !geminiApiKey.isEmpty()), aiProvider, aiModel);
+                String selectedModel = modelSelector.selectOptimalModel(promptText, false);
+                int maxTokens = Math.min(32000, modelSelector.getContextWindowForModel(selectedModel) / 64); // Conservative limit
+
+                logger.info("🎯 Selected model: {} with max tokens: {}", selectedModel, maxTokens);
+                logger.info("🔧 Gemini API call - API Key present: {}, Provider: {}, Model: {}",
+                    (geminiApiKey != null && !geminiApiKey.isEmpty()), aiProvider, selectedModel);
                 
                 // Debug logging for API key
                 logger.debug("🔍 Debug - API Key value: '{}', length: {}", 
@@ -174,18 +209,52 @@ public class AiConfiguration {
                 Map<String, Object> content = Map.of(
                     "parts", List.of(Map.of("text", promptText))
                 );
-                
+
+                // Add system instruction
+                Map<String, Object> systemInstruction = Map.of(
+                    "parts", List.of(Map.of("text",
+                        "You are an expert database and MCP (Model Context Protocol) assistant. " +
+                        "You help users interact with databases through natural language commands. " +
+                        "You can execute tools, analyze data, and provide clear explanations. " +
+                        "Always be helpful, accurate, and explain technical concepts in simple terms. " +
+                        "When executing tools, provide context about what you're doing and why."
+                    ))
+                );
+
+                // Add safety settings
+                List<Map<String, Object>> safetySettings = List.of(
+                    Map.of(
+                        "category", "HARM_CATEGORY_HARASSMENT",
+                        "threshold", "BLOCK_MEDIUM_AND_ABOVE"
+                    ),
+                    Map.of(
+                        "category", "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold", "BLOCK_MEDIUM_AND_ABOVE"
+                    ),
+                    Map.of(
+                        "category", "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold", "BLOCK_MEDIUM_AND_ABOVE"
+                    ),
+                    Map.of(
+                        "category", "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold", "BLOCK_MEDIUM_AND_ABOVE"
+                    )
+                );
+
                 Map<String, Object> requestBody = Map.of(
+                    "system_instruction", systemInstruction,
                     "contents", List.of(content),
+                    "safetySettings", safetySettings,
                     "generationConfig", Map.of(
                         "temperature", 0.7,
-                        "maxOutputTokens", 2048,
+                        "maxOutputTokens", maxTokens,
                         "topP", 0.8,
-                        "topK", 10
+                        "topK", 10,
+                        "candidateCount", 1
                     )
                 );
                 
-                String url = "https://generativelanguage.googleapis.com/v1beta/models/" + aiModel + ":generateContent?key=" + geminiApiKey;
+                String url = "https://generativelanguage.googleapis.com/v1beta/models/" + selectedModel + ":generateContent?key=" + geminiApiKey;
                 logger.info("🌐 Making Gemini API call to: {}", url.substring(0, url.indexOf("?key=")));
                 
                 long startTime = System.currentTimeMillis();
@@ -267,25 +336,55 @@ public class AiConfiguration {
                 
                 throw new RuntimeException("Invalid or empty response structure from Gemini API");
             } catch (org.springframework.web.client.HttpClientErrorException e) {
-                logger.error("❌ Gemini API HTTP error - Status: {}, Body: {}", e.getStatusCode(), e.getResponseBodyAsString());
-                if (e.getStatusCode().value() == 401) {
-                    throw new RuntimeException("Gemini API authentication failed. Please verify your API key.", e);
-                } else if (e.getStatusCode().value() == 403) {
-                    throw new RuntimeException("Gemini API access denied. Check API key permissions and billing.", e);
-                } else if (e.getStatusCode().value() == 429) {
-                    throw new RuntimeException("Gemini API rate limit exceeded. Please try again later.", e);
-                } else {
-                    throw new RuntimeException("Gemini API HTTP error (" + e.getStatusCode() + "): " + e.getResponseBodyAsString(), e);
-                }
+                return handleHttpError(e, promptText);
             } catch (org.springframework.web.client.ResourceAccessException e) {
-                logger.error("❌ Gemini API network error: {}", e.getMessage());
-                throw new RuntimeException("Network error connecting to Gemini API. Check internet connection.", e);
+                return handleNetworkError(e, promptText);
             } catch (Exception e) {
-                logger.error("❌ Gemini API call failed: {}", e.getMessage(), e);
-                throw new RuntimeException("Gemini API call failed: " + e.getMessage(), e);
+                return handleGenericError(e, promptText);
             }
         }
-        
+
+        private ChatResponse handleHttpError(org.springframework.web.client.HttpClientErrorException e, String promptText) {
+            logger.error("❌ Gemini API HTTP error - Status: {}, Body: {}", e.getStatusCode(), e.getResponseBodyAsString());
+
+            String fallbackMessage;
+            switch (e.getStatusCode().value()) {
+                case 401:
+                    fallbackMessage = "Authentication failed. Please check your Gemini API key configuration.";
+                    break;
+                case 403:
+                    fallbackMessage = "Access denied. Please verify your API key permissions and billing status.";
+                    break;
+                case 429:
+                    fallbackMessage = "Rate limit exceeded. Please try again in a moment.";
+                    break;
+                case 400:
+                    fallbackMessage = "Invalid request format. Falling back to basic response.";
+                    break;
+                default:
+                    fallbackMessage = "Gemini API temporarily unavailable. Using fallback processing.";
+            }
+
+            logger.info("🔄 Falling back to pattern matching due to HTTP error");
+            return callPatternMatching(promptText);
+        }
+
+        private ChatResponse handleNetworkError(org.springframework.web.client.ResourceAccessException e, String promptText) {
+            logger.error("❌ Gemini API network error: {}", e.getMessage());
+            logger.info("🔄 Network issue detected, using offline processing");
+            return callPatternMatching(promptText);
+        }
+
+        private ChatResponse handleGenericError(Exception e, String promptText) {
+            logger.error("❌ Unexpected error during Gemini API call: {}", e.getMessage(), e);
+            logger.info("🔄 Unexpected error, falling back to pattern matching");
+            return callPatternMatching(promptText);
+        }
+
+        // Function calling functionality removed from configuration class
+        // to avoid dependency injection issues. This functionality should be
+        // implemented in a separate service class if needed.
+
         private ChatResponse callPatternMatching(String promptText) {
             // Extract user input from the full prompt - try multiple patterns
             String userInput = promptText;

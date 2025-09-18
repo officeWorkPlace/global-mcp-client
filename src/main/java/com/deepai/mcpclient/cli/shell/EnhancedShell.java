@@ -34,8 +34,8 @@ public class EnhancedShell {
     private CliMcpService cliMcpService;
 
     @Autowired
-    private NaturalLanguageProcessor naturalLanguageProcessor;
-    
+    private com.deepai.mcpclient.service.AiService aiService;
+
     @Autowired
     private com.deepai.mcpclient.service.ResponseFormatter responseFormatter;
     
@@ -78,19 +78,21 @@ public class EnhancedShell {
         println(BRIGHT_CYAN + "┌─────────────────────────────────────────────────────────────┐" + RESET);
         println(BRIGHT_CYAN + "│" + RESET + BOLD + WHITE + "           🚀 MCP Interactive Shell v2.0                    " + RESET + BRIGHT_CYAN + "│" + RESET);
         println(BRIGHT_CYAN + "│" + RESET + "                                                           " + BRIGHT_CYAN + "│" + RESET);
-        println(BRIGHT_CYAN + "│" + RESET + BRIGHT_GREEN + "  ✨ Modern Terminal Experience" + RESET + "                        " + BRIGHT_CYAN + "│" + RESET);
-        println(BRIGHT_CYAN + "│" + RESET + "  • Smart auto-completion" + DIM + "                          " + RESET + BRIGHT_CYAN + "│" + RESET);
-        println(BRIGHT_CYAN + "│" + RESET + "  • Natural language commands" + DIM + "                      " + RESET + BRIGHT_CYAN + "│" + RESET);
-        println(BRIGHT_CYAN + "│" + RESET + "  • Session persistence" + DIM + "                           " + RESET + BRIGHT_CYAN + "│" + RESET);
-        println(BRIGHT_CYAN + "│" + RESET + "  • Enhanced database operations" + DIM + "                  " + RESET + BRIGHT_CYAN + "│" + RESET);
+        println(BRIGHT_CYAN + "│" + RESET + BRIGHT_GREEN + "  🤖 AI-Powered Terminal Experience" + RESET + "                   " + BRIGHT_CYAN + "│" + RESET);
+        println(BRIGHT_CYAN + "│" + RESET + "  • Natural language conversation" + DIM + "                   " + RESET + BRIGHT_CYAN + "│" + RESET);
+        println(BRIGHT_CYAN + "│" + RESET + "  • Smart tool selection" + DIM + "                           " + RESET + BRIGHT_CYAN + "│" + RESET);
+        println(BRIGHT_CYAN + "│" + RESET + "  • Context-aware responses" + DIM + "                        " + RESET + BRIGHT_CYAN + "│" + RESET);
+        println(BRIGHT_CYAN + "│" + RESET + "  • Professional AI formatting" + DIM + "                     " + RESET + BRIGHT_CYAN + "│" + RESET);
         println(BRIGHT_CYAN + "└─────────────────────────────────────────────────────────────┘" + RESET);
         println("");
-        
-        println(YELLOW + "💡 " + BOLD + "Quick Start:" + RESET);
-        println("   " + BRIGHT_BLUE + "type: " + WHITE + "'show servers'" + RESET + DIM + "     # List all MCP servers" + RESET);
-        println("   " + BRIGHT_BLUE + "type: " + WHITE + "'list databases'" + RESET + DIM + "   # Show available databases" + RESET);
-        println("   " + BRIGHT_BLUE + "type: " + WHITE + "'help'" + RESET + DIM + "            # Show all commands" + RESET);
-        println("   " + BRIGHT_BLUE + "type: " + WHITE + "'exit'" + RESET + DIM + "            # Leave shell" + RESET);
+
+        println(BRIGHT_BLUE + "🤖 " + BOLD + "AI Assistant Ready!" + RESET);
+        println(DIM + "   Just type what you want to do in natural language:" + RESET);
+        println("");
+        println("   " + BRIGHT_GREEN + "💬 " + WHITE + "\"Show me all databases\"" + RESET);
+        println("   " + BRIGHT_GREEN + "💬 " + WHITE + "\"Find users in the admin database\"" + RESET);
+        println("   " + BRIGHT_GREEN + "💬 " + WHITE + "\"Which servers are healthy?\"" + RESET);
+        println("   " + BRIGHT_GREEN + "💬 " + WHITE + "\"Help me manage my data\"" + RESET);
         println("");
         
         println(DIM + "Session: " + sessionId + " | Started: " + sessionStart.format(DateTimeFormatter.ofPattern("HH:mm:ss")) + RESET);
@@ -148,20 +150,35 @@ public class EnhancedShell {
     
     private void displayPrompt() {
         // Get current time
-        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-        
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+
         // Get server count
         String serverInfo = getServerInfo();
-        
+
         println("");
         print(DIM + "┌─ " + RESET);
-        print(BRIGHT_CYAN + "🔗 mcpcli" + RESET);
+        print(BRIGHT_BLUE + "🤖 AI Assistant" + RESET);
         print(DIM + " [" + time + "]" + RESET);
         print(DIM + " " + serverInfo + RESET);
         println("");
-        
+
         print(DIM + "└─" + RESET);
-        print(BRIGHT_GREEN + "❯ " + RESET);
+        print(BRIGHT_CYAN + "💬 " + RESET);
+        print("Ask me anything: ");
+    }
+
+    /**
+     * Helper method for printing with newline
+     */
+    private void println(String text) {
+        System.out.println(text);
+    }
+
+    /**
+     * Helper method for printing without newline
+     */
+    private void print(String text) {
+        System.out.print(text);
     }
     
     private String getServerInfo() {
@@ -210,41 +227,136 @@ public class EnhancedShell {
     
     private void executeCommand(String input) {
         println("");
-        println(DIM + "Executing: " + WHITE + input + RESET);
-        
+        showTypingIndicator();
+
         try {
-            // Simulate command execution timing
             long startTime = System.currentTimeMillis();
-            
-            // Use the existing natural language processor and CLI service
-            NaturalLanguageProcessor.CommandResult result = naturalLanguageProcessor.processInput(input);
-            
-            if (result.isHelp()) {
-                println("");
-                println(BRIGHT_CYAN + "💡 " + BOLD + "Help & Suggestions" + RESET);
-                println(BRIGHT_CYAN + "─────────────────────" + RESET);
-                println("  " + result.getHelpText());
-                
-            } else if (!result.isCommand()) {
-                displayError("Could not understand: " + input);
-                println(DIM + "💡 Try commands like: 'list databases', 'show servers', 'help'" + RESET);
-                
+
+            // Use the professional AI service for intelligent processing
+            var result = cliMcpService.executeToolWithAi(input, sessionId);
+
+            clearTypingIndicator();
+
+            if (result.isSuccess()) {
+                // Display professional AI response
+                displayAiResponse(result.getResponse());
+
+                // Show tool executions if any
+                if (result.hasToolExecutions()) {
+                    println("");
+                    displayToolExecutions(result.getToolExecutions());
+                }
+
+                // Show model used (professional touch)
+                if (result.getModel() != null) {
+                    long duration = System.currentTimeMillis() - startTime;
+                    println("");
+                    println(DIM + "✨ " + result.getModel() + " • " + duration + "ms" + RESET);
+                }
+
             } else {
-                // Execute the processed command using existing logic
-                String processedCommand = result.getCommand();
-                println(DIM + "🤖 Processing: " + processedCommand + RESET);
-                
-                // Parse and execute using the existing command structure
-                executeProcessedCommand(processedCommand);
+                displayError("I encountered an issue: " + result.getResponse());
+                println(DIM + "💡 Try rephrasing your request or check if the servers are running" + RESET);
             }
-            
-            long duration = System.currentTimeMillis() - startTime;
-            println("");
-            println(DIM + "Completed in " + duration + "ms" + RESET);
-            
+
         } catch (Exception e) {
-            displayError("Execution failed: " + e.getMessage());
-            logger.debug("Command execution error", e);
+            clearTypingIndicator();
+
+            // Check if it's an AI service unavailable error
+            if (e.getMessage() != null && e.getMessage().contains("AI") ||
+                e.getMessage().contains("rate limit") ||
+                e.getMessage().contains("circuit")) {
+
+                displayAiUnavailableMessage();
+
+            } else {
+                displayError("Something went wrong: " + e.getMessage());
+                logger.debug("AI command execution error", e);
+
+                // Graceful fallback with helpful message
+                println("");
+                println(DIM + "💡 You can try:" + RESET);
+                println(DIM + "  • 'list servers' - see available servers" + RESET);
+                println(DIM + "  • 'show databases' - see all databases" + RESET);
+                println(DIM + "  • 'help' - get more assistance" + RESET);
+            }
+        }
+    }
+
+    private void displayAiUnavailableMessage() {
+        println("");
+        println(YELLOW + "⚠️ " + BOLD + "AI Assistant Temporarily Unavailable" + RESET);
+        println(YELLOW + "────────────────────────────────────────" + RESET);
+        println("  " + DIM + "The AI service might be busy or rate limited." + RESET);
+        println("  " + DIM + "Please wait a moment and try again." + RESET);
+        println("");
+        println(DIM + "💡 Alternative options:" + RESET);
+        println(DIM + "  • Use direct commands: 'mcpcli tools list <server>'" + RESET);
+        println(DIM + "  • Check system status: 'mcpcli servers health'" + RESET);
+        println(DIM + "  • Try again in a few moments" + RESET);
+    }
+
+    private void showTypingIndicator() {
+        print(DIM + "🤖 Thinking");
+        for (int i = 0; i < 3; i++) {
+            try {
+                Thread.sleep(200);
+                print(".");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        println(RESET);
+    }
+
+    private void clearTypingIndicator() {
+        // Move cursor up and clear the typing indicator line
+        print("\033[1A\033[2K\r");
+    }
+
+    private void displayAiResponse(String response) {
+        println("");
+        println(BRIGHT_BLUE + "🤖 " + BOLD + "Assistant" + RESET);
+        println(BRIGHT_BLUE + "──────────" + RESET);
+
+        // Format the response with proper word wrapping and styling
+        String[] lines = response.split("\n");
+        for (String line : lines) {
+            if (line.trim().isEmpty()) {
+                println("");
+                continue;
+            }
+
+            // Detect and highlight important information
+            if (line.contains("✅") || line.contains("success")) {
+                println(GREEN + "  " + line + RESET);
+            } else if (line.contains("❌") || line.contains("error") || line.contains("failed")) {
+                println(RED + "  " + line + RESET);
+            } else if (line.contains("⚠️") || line.contains("warning")) {
+                println(YELLOW + "  " + line + RESET);
+            } else if (line.startsWith("•") || line.startsWith("-") || line.startsWith("*")) {
+                println(CYAN + "  " + line + RESET);
+            } else {
+                println("  " + line);
+            }
+        }
+    }
+
+    private void displayToolExecutions(java.util.List<com.deepai.mcpclient.model.ChatResponse.ToolExecution> executions) {
+        println(DIM + "🔧 " + BOLD + "Tool Executions" + RESET);
+        println(DIM + "───────────────" + RESET);
+
+        for (var execution : executions) {
+            String statusIcon = execution.success() ? "✅" : "❌";
+            String statusColor = execution.success() ? GREEN : RED;
+
+            println(String.format("  %s %s%s%s on %s%s%s (%s%dms%s)",
+                statusIcon,
+                CYAN + BOLD, execution.toolName(), RESET,
+                YELLOW, execution.serverId(), RESET,
+                DIM, execution.executionTimeMs(), RESET
+            ));
         }
     }
     

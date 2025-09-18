@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 /**
  * AI-Powered Response Formatter for Global MCP Client
@@ -217,10 +220,16 @@ public class ResponseFormatter {
             );
             
             logger.info("🤖 Using AI to format {} results with {} items", toolName, size);
-            
-            // Get AI-formatted response
-            String aiFormatted = aiService.ask(aiPrompt).block();
-            
+
+            // Get AI-formatted response with timeout and fallback
+            String aiFormatted = aiService.ask(aiPrompt)
+                .timeout(Duration.ofSeconds(10))
+                .onErrorResume(e -> {
+                    logger.warn("AI formatting error for {}: {}, using fallback", toolName, e.getMessage());
+                    return Mono.empty();
+                })
+                .block();
+
             if (aiFormatted != null && !aiFormatted.trim().isEmpty()) {
                 return "🤖 " + aiFormatted;
             } else {
@@ -294,10 +303,16 @@ public class ResponseFormatter {
             );
             
             logger.info("🤖 Using AI to format {} object result", toolName);
-            
-            // Get AI-formatted response
-            String aiFormatted = aiService.ask(aiPrompt).block();
-            
+
+            // Get AI-formatted response with timeout and fallback
+            String aiFormatted = aiService.ask(aiPrompt)
+                .timeout(Duration.ofSeconds(10))
+                .onErrorResume(e -> {
+                    logger.warn("AI formatting error for {}: {}, using fallback", toolName, e.getMessage());
+                    return Mono.empty();
+                })
+                .block();
+
             if (aiFormatted != null && !aiFormatted.trim().isEmpty()) {
                 return "🤖 " + aiFormatted;
             } else {

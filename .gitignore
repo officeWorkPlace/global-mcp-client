@@ -4,6 +4,7 @@
 .mvn/
 
 # IDEs and editors
+.claude/
 .idea/
 *.iml
 *.ipr

@@ -10,6 +10,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.List;
@@ -50,84 +52,320 @@ public class IntentProcessor {
     }
 
     /**
-     * Analyze user intent - works with ANY MCP server type
+     * Analyze user intent - works with ANY MCP server type (Reactive version)
+     */
+    public Mono<Intent> analyzeIntentAsync(String userInput) {
+        logger.debug("Analyzing intent for user input: {}", userInput);
+
+        return discoverAllAvailableTools()
+            .flatMap(allServerTools -> {
+                if (allServerTools.isEmpty()) {
+                    logger.warn("No MCP servers available or no tools discovered");
+                    return Mono.just(new Intent(false, null, null, Map.of(), 0.0, "No MCP tools available", null, null));
+                }
+
+                // Step 2: Use AI to understand intent and match with any available tool
+                return processIntentWithTools(userInput, allServerTools);
+            })
+            .onErrorResume(error -> {
+                logger.error("Intent analysis failed: {}", error.getMessage(), error);
+                return Mono.just(new Intent(false, null, null, Map.of(), 0.0,
+                    "Intent analysis failed: " + error.getMessage(), null, null));
+            });
+    }
+
+    /**
+     * Analyze user intent - works with ANY MCP server type (Synchronous version for backward compatibility)
      */
     public Intent analyzeIntent(String userInput) {
         logger.debug("Analyzing intent for user input: {}", userInput);
-        
+
         try {
-            // Step 1: Dynamically discover ALL available tools from ALL servers
-            Map<String, List<McpTool>> allServerTools = discoverAllAvailableTools();
-            
-            if (allServerTools.isEmpty()) {
-                logger.warn("No MCP servers available or no tools discovered");
-                return new Intent(false, null, null, Map.of(), 0.0, "No MCP tools available");
+            // Use reactive version but block for synchronous callers
+            return analyzeIntentAsync(userInput).block();
+        } catch (Exception e) {
+            logger.error("Intent analysis failed: {}", e.getMessage(), e);
+            return new Intent(false, null, null, Map.of(), 0.0,
+                "Intent analysis failed: " + e.getMessage(), null, null);
+        }
+    }
+
+    private Mono<Intent> processIntentWithTools(String userInput, Map<String, List<McpTool>> allServerTools) {
+        return Mono.fromCallable(() -> {
+            try {
+                Intent intent = analyzeIntentWithAI(userInput, allServerTools);
+
+                logger.info("Intent analysis: execution={}, tool={}, server={}, confidence={}",
+                    intent.requiresToolExecution(), intent.toolName(), intent.serverId(), intent.confidence());
+
+                return intent;
+
+            } catch (Exception e) {
+                logger.error("Error in intent analysis: {}", e.getMessage(), e);
+                return new Intent(false, null, null, Map.of(), 0.0, "Error analyzing intent: " + e.getMessage(), null, null);
+            }
+        });
+    }
+
+    /**
+     * Enhanced intent analysis with tool awareness and multi-step support
+     */
+    public Intent analyzeIntentWithToolAwareness(String userMessage, Map<String, List<McpTool>> availableTools) {
+        logger.info("🧠 Analyzing intent with enhanced tool awareness for: '{}'", userMessage);
+
+        // Build context about available tools
+        String toolsContext = buildToolsContextForAI(availableTools);
+
+        String analysisPrompt = String.format("""
+            You are an expert AI assistant that analyzes user requests and maps them to available MCP tools.
+
+            USER REQUEST: "%s"
+
+            AVAILABLE TOOLS:
+            %s
+
+            Analyze the user's intent and respond with JSON:
+            {
+              "confidence": 0.95,
+              "intent_type": "database_operation|file_operation|analysis|multi_step",
+              "primary_action": "tool_name",
+              "server_id": "best_server_for_task",
+              "parameters": {},
+              "reasoning": "why you chose this tool",
+              "requires_chain": false,
+              "suggested_steps": ["step1", "step2"]
             }
 
-            // Step 2: Use AI to understand intent and match with any available tool
-            Intent intent = analyzeIntentWithAI(userInput, allServerTools);
-            
-            logger.info("Intent analysis: execution={}, tool={}, server={}, confidence={}", 
-                intent.requiresToolExecution(), intent.toolName(), intent.serverId(), intent.confidence());
-                
-            return intent;
-            
+            Choose the BEST tool based on:
+            1. Tool description match with user intent
+            2. Server capabilities and performance
+            3. Parameter requirements vs available info
+
+            If the request suggests multiple operations, set requires_chain to true and suggest steps.
+            If no exact match exists, suggest the closest alternative.
+            """, userMessage, toolsContext);
+
+        try {
+            ChatResponse response = chatModel.call(
+                new Prompt(new UserMessage(analysisPrompt))
+            );
+
+            String aiAnalysis = response.getResult().getOutput().getText();
+            return parseAIIntentAnalysis(aiAnalysis, userMessage);
+
         } catch (Exception e) {
-            logger.error("Error in intent analysis: {}", e.getMessage(), e);
-            return new Intent(false, null, null, Map.of(), 0.0, "Error analyzing intent: " + e.getMessage());
+            logger.warn("⚠️ AI intent analysis failed, falling back to pattern matching: {}", e.getMessage());
+            return analyzeIntentFallback(userMessage, availableTools);
         }
+    }
+
+    private String buildToolsContextForAI(Map<String, List<McpTool>> availableTools) {
+        StringBuilder context = new StringBuilder();
+
+        for (Map.Entry<String, List<McpTool>> entry : availableTools.entrySet()) {
+            String serverId = entry.getKey();
+            List<McpTool> tools = entry.getValue();
+
+            context.append(String.format("\nSERVER: %s (%d tools)\n", serverId, tools.size()));
+
+            for (McpTool tool : tools) {
+                context.append(String.format("- %s: %s\n", tool.name(), tool.description()));
+
+                // Add key parameters for better matching
+                if (tool.inputSchema() != null) {
+                    Object properties = extractProperties(tool.inputSchema());
+                    if (properties != null) {
+                        context.append(String.format("  Parameters: %s\n", properties));
+                    }
+                }
+            }
+        }
+
+        return context.toString();
+    }
+
+    private Object extractProperties(Map<String, Object> inputSchema) {
+        if (inputSchema.containsKey("properties")) {
+            Map<String, Object> properties = (Map<String, Object>) inputSchema.get("properties");
+            return properties.keySet();
+        }
+        return null;
+    }
+
+    private Intent parseAIIntentAnalysis(String aiAnalysis, String originalMessage) {
+        try {
+            // Clean up AI response (remove markdown formatting if present)
+            String cleanJson = aiAnalysis.replaceAll("```json", "").replaceAll("```", "").trim();
+
+            JsonNode analysis = objectMapper.readTree(cleanJson);
+
+            boolean requiresExecution = analysis.path("primary_action").asText() != null &&
+                                       !analysis.path("primary_action").asText().isEmpty();
+
+            List<String> suggestedSteps = null;
+            boolean requiresChain = analysis.path("requires_chain").asBoolean(false);
+            if (requiresChain) {
+                JsonNode stepsNode = analysis.path("suggested_steps");
+                if (stepsNode.isArray()) {
+                    suggestedSteps = new java.util.ArrayList<>();
+                    for (JsonNode stepNode : stepsNode) {
+                        suggestedSteps.add(stepNode.asText());
+                    }
+                }
+            }
+
+            Map<String, Object> parameters = new HashMap<>();
+            JsonNode paramsNode = analysis.path("parameters");
+            if (paramsNode.isObject()) {
+                paramsNode.fields().forEachRemaining(entry -> {
+                    parameters.put(entry.getKey(), parseJsonValue(entry.getValue()));
+                });
+            }
+
+            Intent intent = new Intent(
+                requiresExecution,
+                analysis.path("primary_action").asText(null),
+                analysis.path("server_id").asText(null),
+                parameters,
+                analysis.path("confidence").asDouble(0.7),
+                analysis.path("reasoning").asText("AI analysis"),
+                analysis.path("intent_type").asText("general"),
+                suggestedSteps
+            );
+
+            logger.info("✅ AI intent analysis successful: {} (confidence: {})",
+                intent.toolName(), intent.confidence());
+
+            return intent;
+
+        } catch (Exception e) {
+            logger.error("❌ Failed to parse AI intent analysis: {}", e.getMessage());
+            logger.debug("Raw AI response: {}", aiAnalysis);
+            return analyzeIntentFallback(originalMessage, null);
+        }
+    }
+
+    private Intent analyzeIntentFallback(String userMessage, Map<String, List<McpTool>> availableTools) {
+        logger.info("🔄 Using fallback pattern matching for: '{}'", userMessage);
+
+        String lower = userMessage.toLowerCase();
+
+        // Enhanced pattern matching with better tool selection
+        if (lower.contains("list") && (lower.contains("database") || lower.contains("db"))) {
+            return new Intent(
+                true,
+                "listDatabases",
+                selectBestDatabaseServer(availableTools),
+                Map.of(),
+                0.8,
+                "Pattern match: list databases",
+                "database_operation",
+                null
+            );
+        } else if (lower.contains("find") || lower.contains("search")) {
+            return new Intent(
+                true,
+                "findDocuments",
+                selectBestDatabaseServer(availableTools),
+                extractSearchParameters(userMessage),
+                0.7,
+                "Pattern match: search operation",
+                "database_operation",
+                null
+            );
+        }
+
+        // Add more intelligent patterns...
+
+        return new Intent(
+            false,
+            "help",
+            null,
+            Map.of(),
+            0.3,
+            "No clear pattern match found",
+            "conversational",
+            null
+        );
+    }
+
+    private String selectBestDatabaseServer(Map<String, List<McpTool>> availableTools) {
+        if (availableTools == null) return null;
+
+        // Intelligent server selection logic
+        for (String serverId : availableTools.keySet()) {
+            if (serverId.contains("oracle") || serverId.contains("mongo")) {
+                return serverId; // Prefer database servers
+            }
+        }
+        return availableTools.keySet().iterator().hasNext() ?
+               availableTools.keySet().iterator().next() : null; // Fallback
+    }
+
+    private Map<String, Object> extractSearchParameters(String userMessage) {
+        Map<String, Object> params = new HashMap<>();
+
+        // Basic parameter extraction - can be enhanced with NLP
+        if (userMessage.contains("email")) {
+            params.put("field", "email");
+        }
+        if (userMessage.contains("gmail")) {
+            params.put("pattern", ".*gmail.*");
+        }
+
+        return params;
     }
 
     /**
      * Dynamically discover all tools from all connected MCP servers
      * Works with any server type - no assumptions
      */
-    private Map<String, List<McpTool>> discoverAllAvailableTools() {
+    private Mono<Map<String, List<McpTool>>> discoverAllAvailableTools() {
         long currentTime = System.currentTimeMillis();
-        
+
         // Use cache if fresh
         if (currentTime - lastToolsCacheUpdate < CACHE_EXPIRY_MS && !serverToolsCache.isEmpty()) {
             logger.debug("Using cached tool information");
-            return new HashMap<>(serverToolsCache);
+            return Mono.just(new HashMap<>(serverToolsCache));
         }
 
         logger.info("Discovering tools from all MCP servers...");
         serverToolsCache.clear();
-        
+
         // Get all configured servers (could be any type)
         List<String> serverIds = mcpClientService.getServerIds();
         logger.info("Found {} configured MCP servers: {}", serverIds.size(), serverIds);
-        
-        for (String serverId : serverIds) {
-            try {
-                // Check server health first
-                Boolean isHealthy = mcpClientService.isServerHealthy(serverId).block();
-                if (Boolean.TRUE.equals(isHealthy)) {
-                    
-                    // Discover tools from this server
-                    List<McpTool> tools = mcpClientService.listTools(serverId).block();
-                    if (tools != null && !tools.isEmpty()) {
-                        serverToolsCache.put(serverId, tools);
-                        logger.info("Server '{}': Discovered {} tools", serverId, tools.size());
-                        
-                        // Log tool details for debugging
-                        tools.forEach(tool -> logger.debug("  - {}: {}", tool.name(), tool.description()));
-                    } else {
-                        logger.warn("Server '{}': No tools available", serverId);
-                    }
-                } else {
-                    logger.warn("Server '{}': Not healthy, skipping tool discovery", serverId);
-                }
-            } catch (Exception e) {
-                logger.error("Failed to discover tools from server '{}': {}", serverId, e.getMessage());
-            }
-        }
-        
-        lastToolsCacheUpdate = currentTime;
-        int totalTools = serverToolsCache.values().stream().mapToInt(List::size).sum();
-        logger.info("Tool discovery complete: {} servers, {} total tools", serverToolsCache.size(), totalTools);
-        
-        return new HashMap<>(serverToolsCache);
+
+        return Flux.fromIterable(serverIds)
+            .flatMap(serverId ->
+                mcpClientService.isServerHealthy(serverId)
+                    .filter(Boolean.TRUE::equals)
+                    .flatMap(healthy -> mcpClientService.listTools(serverId)
+                        .doOnNext(tools -> {
+                            if (tools != null && !tools.isEmpty()) {
+                                serverToolsCache.put(serverId, tools);
+                                logger.info("Server '{}': Discovered {} tools", serverId, tools.size());
+                                tools.forEach(tool -> logger.debug("  - {}: {}", tool.name(), tool.description()));
+                            } else {
+                                logger.warn("Server '{}': No tools available", serverId);
+                            }
+                        })
+                        .map(tools -> Map.entry(serverId, tools))
+                    )
+                    .onErrorResume(error -> {
+                        logger.error("Failed to discover tools from server '{}': {}", serverId, error.getMessage());
+                        return Mono.empty();
+                    })
+                    .switchIfEmpty(Mono.fromRunnable(() ->
+                        logger.warn("Server '{}': Not healthy, skipping tool discovery", serverId)))
+            )
+            .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+            .doOnNext(discoveredTools -> {
+                lastToolsCacheUpdate = currentTime;
+                int totalTools = discoveredTools.values().stream().mapToInt(List::size).sum();
+                logger.info("Tool discovery complete: {} servers, {} total tools", discoveredTools.size(), totalTools);
+            })
+            .map(HashMap::new);
     }
 
     /**
@@ -222,19 +460,19 @@ public class IntentProcessor {
             // Extract JSON from AI response (handle cases where AI adds extra text)
             String jsonPart = extractJsonFromResponse(response);
             JsonNode json = objectMapper.readTree(jsonPart);
-            
+
             boolean requiresExecution = json.path("requiresToolExecution").asBoolean(false);
-            
+
             if (!requiresExecution) {
                 String reasoning = json.path("reasoning").asText("No tool execution required");
-                return new Intent(false, null, null, Map.of(), 0.0, reasoning);
+                return new Intent(false, null, null, Map.of(), 0.0, reasoning, "conversational", null);
             }
 
             String toolName = json.path("toolName").asText(null);
             String serverId = json.path("serverId").asText(null);
             double confidence = json.path("confidence").asDouble(0.7);
             String reasoning = json.path("reasoning").asText("AI analysis");
-            
+
             // Parse parameters
             Map<String, Object> parameters = new HashMap<>();
             JsonNode paramsNode = json.path("parameters");
@@ -244,11 +482,11 @@ public class IntentProcessor {
                 });
             }
 
-            return new Intent(requiresExecution, toolName, serverId, parameters, confidence, reasoning);
-            
+            return new Intent(requiresExecution, toolName, serverId, parameters, confidence, reasoning, "general", null);
+
         } catch (Exception e) {
             logger.error("Error parsing AI response: {}", e.getMessage(), e);
-            return new Intent(false, null, null, Map.of(), 0.0, "Failed to parse AI response");
+            return new Intent(false, null, null, Map.of(), 0.0, "Failed to parse AI response", "error", null);
         }
     }
 
@@ -293,19 +531,19 @@ public class IntentProcessor {
      */
     private Intent createFallbackIntent(String userInput, Map<String, List<McpTool>> allServerTools) {
         logger.info("Creating fallback intent analysis for: {}", userInput);
-        
+
         String normalizedInput = userInput.toLowerCase().trim();
-        
+
         // Simple keyword matching as fallback
         for (Map.Entry<String, List<McpTool>> entry : allServerTools.entrySet()) {
             String serverId = entry.getKey();
             List<McpTool> tools = entry.getValue();
-            
+
             for (McpTool tool : tools) {
                 // Check if input contains tool name or description keywords
                 if (normalizedInput.contains(tool.name().toLowerCase()) ||
                     hasKeywordMatch(normalizedInput, tool.description().toLowerCase())) {
-                    
+
                     logger.info("Fallback match: tool='{}', server='{}'", tool.name(), serverId);
                     return new Intent(
                         true,
@@ -313,13 +551,15 @@ public class IntentProcessor {
                         serverId,
                         Map.of(), // Empty parameters for fallback
                         0.4, // Low confidence for fallback
-                        "Fallback keyword matching"
+                        "Fallback keyword matching",
+                        "general",
+                        null
                     );
                 }
             }
         }
-        
-        return new Intent(false, null, null, Map.of(), 0.0, "No matching tools found");
+
+        return new Intent(false, null, null, Map.of(), 0.0, "No matching tools found", "conversational", null);
     }
 
     /**
@@ -354,30 +594,55 @@ public class IntentProcessor {
     }
 
     /**
-     * Public API: Get tools for specific server
+     * Public API: Get tools for specific server (Reactive version)
+     */
+    public Mono<List<McpTool>> getServerToolsAsync(String serverId) {
+        return discoverAllAvailableTools()
+            .map(allTools -> allTools.getOrDefault(serverId, List.of()));
+    }
+
+    /**
+     * Public API: Get tools for specific server (Synchronous version for backward compatibility)
      */
     public List<McpTool> getServerTools(String serverId) {
-        Map<String, List<McpTool>> allTools = discoverAllAvailableTools();
-        return allTools.getOrDefault(serverId, List.of());
+        return getServerToolsAsync(serverId).block();
     }
 
     /**
-     * Public API: Get summary of all servers and their capabilities
+     * Public API: Get summary of all servers and their capabilities (Reactive version)
+     */
+    public Mono<Map<String, Integer>> getServerToolCountsAsync() {
+        return discoverAllAvailableTools()
+            .map(allTools -> {
+                Map<String, Integer> counts = new HashMap<>();
+                allTools.forEach((serverId, tools) -> counts.put(serverId, tools.size()));
+                return counts;
+            });
+    }
+
+    /**
+     * Public API: Get summary of all servers and their capabilities (Synchronous version for backward compatibility)
      */
     public Map<String, Integer> getServerToolCounts() {
-        Map<String, List<McpTool>> allTools = discoverAllAvailableTools();
-        Map<String, Integer> counts = new HashMap<>();
-        allTools.forEach((serverId, tools) -> counts.put(serverId, tools.size()));
-        return counts;
+        return getServerToolCountsAsync().block();
     }
 
     /**
-     * Public API: Force refresh of tool cache
+     * Public API: Force refresh of tool cache (Reactive version)
      */
-    public void refreshToolCache() {
+    public Mono<Void> refreshToolCacheAsync() {
         logger.info("Forcing refresh of tool cache");
         lastToolsCacheUpdate = 0;
-        discoverAllAvailableTools();
+        return discoverAllAvailableTools()
+            .doOnNext(tools -> logger.info("Tool cache refreshed with {} servers", tools.size()))
+            .then();
+    }
+
+    /**
+     * Public API: Force refresh of tool cache (Synchronous version for backward compatibility)
+     */
+    public void refreshToolCache() {
+        refreshToolCacheAsync().block();
     }
 
     /**
@@ -389,6 +654,17 @@ public class IntentProcessor {
         String serverId,                 // Any configured server ID
         Map<String, Object> parameters,  // Generic parameters for any tool
         double confidence,               // Confidence in the analysis
-        String reasoning                 // AI reasoning for transparency
-    ) {}
+        String reasoning,                // AI reasoning for transparency
+        String intentType,               // Type of intent: database_operation, file_operation, etc.
+        List<String> suggestedSteps     // Multi-step workflow suggestions
+    ) {
+        // Convenience methods
+        public String getOriginalMessage() {
+            return reasoning; // For backward compatibility
+        }
+
+        public List<String> getSuggestedSteps() {
+            return suggestedSteps;
+        }
+    }
 }

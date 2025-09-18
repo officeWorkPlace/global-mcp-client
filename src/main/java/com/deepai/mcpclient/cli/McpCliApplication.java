@@ -5,6 +5,7 @@ import com.deepai.mcpclient.cli.commands.ConfigCommands;
 import com.deepai.mcpclient.cli.commands.EnhancedShellCommand;
 import com.deepai.mcpclient.cli.commands.ServerCommands;
 import com.deepai.mcpclient.cli.commands.ShellCommand;
+import com.deepai.mcpclient.cli.commands.SmartToolCommands;
 import com.deepai.mcpclient.cli.commands.ToolCommands;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
@@ -33,6 +34,7 @@ import picocli.CommandLine.Option;
     subcommands = {
         ServerCommands.class,
         ToolCommands.class,
+        SmartToolCommands.class,
         AiCommands.class,
         ConfigCommands.class,
         ShellCommand.class,

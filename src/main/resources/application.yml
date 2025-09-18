@@ -19,9 +19,9 @@ spring:
         api-key: ${GEMINI_API_KEY:your-gemini-api-key-here}
         chat:
           options:
-            model: gemini-1.5-flash
+            model: gemini-1.5-pro
             temperature: 0.7
-            max-tokens: 2048
+            max-tokens: 32000
     # Fallback to Ollama if Gemini is not available
     ollama:
       base-url: "http://localhost:11434"
@@ -58,8 +58,13 @@ logging:
 ai:
   enabled: true
   provider: gemini
-  model: gemini-1.5-flash
+  model: gemini-1.5-pro
   api-key: ${GEMINI_API_KEY:your-gemini-api-key-here}
+  # Optional: Add model selection
+  models:
+    default: gemini-1.5-pro
+    fast: gemini-1.5-flash
+    reasoning: gemini-1.5-pro
 
 management:
   endpoints:
