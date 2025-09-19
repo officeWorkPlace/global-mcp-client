@@ -5,6 +5,7 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -45,7 +46,7 @@ public class ConnectionPoolConfiguration {
      * Configure HTTP client with optimized connection pooling for AI services
      */
     @Bean
-    public HttpClient httpClient(ConnectionProvider connectionProvider) {
+    public HttpClient httpClient(@Qualifier("httpConnectionProvider") ConnectionProvider connectionProvider) {
         HttpClient client = HttpClient.create(connectionProvider)
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)  // 10s connect timeout
             .option(ChannelOption.SO_KEEPALIVE, true)              // Enable TCP keep-alive

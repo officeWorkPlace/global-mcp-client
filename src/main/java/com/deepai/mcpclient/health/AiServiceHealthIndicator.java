@@ -2,14 +2,16 @@ package com.deepai.mcpclient.health;
 
 import com.deepai.mcpclient.service.AiService;
 import com.deepai.mcpclient.service.ResilienceService;
+import com.deepai.mcpclient.service.DynamicAiProviderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuator.health.Health;
-import org.springframework.boot.actuator.health.HealthIndicator;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Health indicator for AI services
@@ -22,11 +24,13 @@ public class AiServiceHealthIndicator implements HealthIndicator {
 
     private final AiService aiService;
     private final ResilienceService resilienceService;
+    private final DynamicAiProviderService providerService;
 
     @Autowired
-    public AiServiceHealthIndicator(AiService aiService, ResilienceService resilienceService) {
+    public AiServiceHealthIndicator(AiService aiService, ResilienceService resilienceService, DynamicAiProviderService providerService) {
         this.aiService = aiService;
         this.resilienceService = resilienceService;
+        this.providerService = providerService;
     }
 
     @Override
@@ -81,6 +85,30 @@ public class AiServiceHealthIndicator implements HealthIndicator {
 
             // Overall resilience health
             healthBuilder.withDetail("resilience_healthy", resilienceStatus.isHealthy());
+
+            // Add dynamic provider information
+            try {
+                String currentProvider = providerService.getCurrentProvider();
+                List<String> availableProviders = providerService.getAvailableProviders();
+
+                healthBuilder.withDetail("current_provider", currentProvider)
+                           .withDetail("available_providers", String.join(", ", availableProviders))
+                           .withDetail("total_providers_available", availableProviders.size());
+
+                // Test current provider specifically
+                if (!"pattern-matching".equals(currentProvider)) {
+                    boolean providerHealthy = providerService.testProviderConnectivity(currentProvider);
+                    healthBuilder.withDetail("current_provider_healthy", providerHealthy);
+
+                    if (!providerHealthy && isHealthy) {
+                        healthBuilder = Health.down();
+                        isHealthy = false;
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to get dynamic provider health: {}", e.getMessage());
+                healthBuilder.withDetail("provider_health_check", "FAILED: " + e.getMessage());
+            }
 
             return healthBuilder.build();
 

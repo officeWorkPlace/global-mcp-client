@@ -22,6 +22,8 @@ import jakarta.annotation.PostConstruct;
 import com.deepai.mcpclient.service.GeminiCircuitBreaker;
 import com.deepai.mcpclient.service.GeminiRetryService;
 import com.deepai.mcpclient.service.GeminiModelSelector;
+import com.deepai.mcpclient.service.DynamicAiProviderService;
+import com.deepai.mcpclient.service.MultiProviderChatModel;
 // Removed imports for services that caused dependency injection issues
 
 import java.util.List;
@@ -104,13 +106,12 @@ public class AiConfiguration {
     }
 
     /**
-     * ChatModel bean with Gemini API integration and fallback to pattern matching
+     * ChatModel bean with multi-provider support and dynamic key detection
      */
     @Bean
-    public ChatModel chatModel() {
-        logger.info("Configuring ChatModel with Gemini API integration - Provider: {}, Model: {}, API Key Present: {}", 
-            aiProvider, aiModel, (geminiApiKey != null && !geminiApiKey.isEmpty()));
-        return new CustomChatModelImpl();
+    public ChatModel chatModel(DynamicAiProviderService providerService) {
+        logger.info("Configuring Multi-Provider ChatModel with dynamic AI service selection");
+        return new MultiProviderChatModel(providerService);
     }
 
     /**

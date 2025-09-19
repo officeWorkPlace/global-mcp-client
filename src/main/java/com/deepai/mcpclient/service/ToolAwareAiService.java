@@ -179,6 +179,7 @@ public class ToolAwareAiService {
             return "{}";
         }
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
         if (properties == null) {
             return schema.toString();
@@ -210,6 +211,7 @@ public class ToolAwareAiService {
 
                 // Parse parameters
                 JsonNode params = stepNode.get("parameters");
+                @SuppressWarnings("unchecked")
                 Map<String, Object> parameters = objectMapper.convertValue(params, Map.class);
                 step.setParameters(parameters);
 

@@ -7,8 +7,8 @@ import com.deepai.mcpclient.health.SystemHealthIndicator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuator.health.Health;
-import org.springframework.boot.actuator.health.Status;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.Status;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 

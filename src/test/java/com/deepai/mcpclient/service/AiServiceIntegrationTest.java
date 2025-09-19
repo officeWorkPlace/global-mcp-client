@@ -1,6 +1,7 @@
 package com.deepai.mcpclient.service;
 
 import com.deepai.mcpclient.service.impl.AiServiceImpl;
+import com.deepai.mcpclient.security.InputValidationService;
 
 import com.deepai.mcpclient.config.AiConfiguration;
 import com.deepai.mcpclient.model.*;
@@ -22,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -51,8 +52,22 @@ public class AiServiceIntegrationTest {
         when(aiProperties.getDefaultModel()).thenReturn("test-model");
         when(aiProperties.getMaxTokens()).thenReturn(2048);
         
+        // Create mocks for additional dependencies
+        InputValidationService inputValidationService = mock(InputValidationService.class);
+        ResilienceService resilienceService = mock(ResilienceService.class);
+
+        // Configure validation service mock
+        when(inputValidationService.validateUserInput(anyString()))
+            .thenReturn(InputValidationService.ValidationResult.valid("test input"));
+        when(inputValidationService.validateContextId(anyString()))
+            .thenReturn(InputValidationService.ValidationResult.valid("test-context"));
+        when(inputValidationService.isHighRiskInput(anyString())).thenReturn(false);
+
+        // Configure resilience service mock
+        when(resilienceService.canUserMakeRequest()).thenReturn(true);
+
         // Create AI service
-        aiService = new AiServiceImpl(chatModel, mcpClientService, aiProperties);
+        aiService = new AiServiceImpl(chatModel, mcpClientService, inputValidationService, resilienceService, aiProperties);
     }
 
     @Test

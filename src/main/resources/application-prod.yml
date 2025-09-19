@@ -1,98 +1,265 @@
-# Production Environment Configuration
-# Copy this file to application-prod.yml for production deployment
+# Production Configuration for Global MCP Client
+# This profile is optimized for production deployment
 
 server:
-  port: ${PORT:8080}
+  port: ${SERVER_PORT:8080}
   servlet:
-    context-path: /
-  ssl:
-    enabled: ${SSL_ENABLED:false}
-    key-store: ${SSL_KEYSTORE_PATH:}
-    key-store-password: ${SSL_KEYSTORE_PASSWORD:}
+    context-path: ${CONTEXT_PATH:/}
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
 
 spring:
   application:
     name: global-mcp-client
   profiles:
     active: prod
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+    deserialization:
+      fail-on-unknown-properties: false
+  
+  ai:
+    # Production AI configuration with fallback providers
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: ${AI_TEMPERATURE:0.7}
+          max-tokens: ${AI_MAX_TOKENS:4096}
+      enabled: true
+    
+    google:
+      gemini:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: ${GEMINI_MODEL:gemini-1.5-pro}
+            temperature: ${AI_TEMPERATURE:0.7}
+            max-tokens: ${AI_MAX_TOKENS:32000}
+        enabled: true
+    
+    anthropic:
+      claude:
+        api-key: ${ANTHROPIC_API_KEY}
+        chat:
+          options:
+            model: ${CLAUDE_MODEL:claude-3-5-sonnet-20241022}
+            temperature: ${AI_TEMPERATURE:0.7}
+            max-tokens: ${AI_MAX_TOKENS:4096}
+        enabled: ${ANTHROPIC_ENABLED:false}
+    
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${OLLAMA_MODEL:llama3.1:8b}
+          temperature: ${AI_TEMPERATURE:0.7}
+          max-tokens: ${AI_MAX_TOKENS:2048}
+      enabled: ${OLLAMA_ENABLED:false}
+  
+  web:
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yourdomain.com,https://api.yourdomain.com}
+      allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
+      allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+      allow-credentials: true
+      max-age: 3600
 
+# Production logging configuration
 logging:
   level:
-    com.officeworkplace: INFO
-    org.springframework.web: WARN
-    root: INFO
+    com.deepai.mcpclient: ${LOG_LEVEL_DEEPAI:INFO}
+    org.springframework.web: ${LOG_LEVEL_SPRING:WARN}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}
+    root: ${LOG_LEVEL_ROOT:WARN}
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
   file:
-    name: logs/global-mcp-client.log
-    max-size: 10MB
-    max-history: 30
+    name: ${LOG_FILE:./logs/global-mcp-client.log}
+    max-size: ${LOG_MAX_SIZE:100MB}
+    max-history: ${LOG_MAX_HISTORY:30}
+    total-size-cap: ${LOG_TOTAL_SIZE:1GB}
 
+# AI Configuration for production
+ai:
+  enabled: true
+  provider: ${AI_PROVIDER:openai}
+  fallback-providers: ${AI_FALLBACK_PROVIDERS:gemini,claude,ollama}
+  model: ${AI_MODEL:gpt-4o-mini}
+  api-key: ${OPENAI_API_KEY}
+  
+  # Production model configuration
+  models:
+    openai:
+      default: ${OPENAI_DEFAULT_MODEL:gpt-4o-mini}
+      advanced: ${OPENAI_ADVANCED_MODEL:gpt-4o}
+      fast: ${OPENAI_FAST_MODEL:gpt-3.5-turbo}
+    gemini:
+      default: ${GEMINI_DEFAULT_MODEL:gemini-1.5-pro}
+      fast: ${GEMINI_FAST_MODEL:gemini-1.5-flash}
+      reasoning: ${GEMINI_REASONING_MODEL:gemini-1.5-pro}
+    claude:
+      default: ${CLAUDE_DEFAULT_MODEL:claude-3-5-sonnet-20241022}
+      fast: ${CLAUDE_FAST_MODEL:claude-3-haiku-20240307}
+      advanced: ${CLAUDE_ADVANCED_MODEL:claude-3-opus-20240229}
+    ollama:
+      default: ${OLLAMA_DEFAULT_MODEL:llama3.1:8b}
+      code: ${OLLAMA_CODE_MODEL:deepseek-coder:6.7b}
+      fast: ${OLLAMA_FAST_MODEL:phi3:mini}
+  
+  # Performance settings
+  timeout: ${AI_TIMEOUT:30000}
+  max-retries: ${AI_MAX_RETRIES:3}
+  rate-limit: ${AI_RATE_LIMIT:100}
+
+# Production management and monitoring
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,loggers
       base-path: /actuator
   endpoint:
     health:
       show-details: when-authorized
-  metrics:
-    export:
-      prometheus:
+      show-components: always
+      probes:
         enabled: true
+    info:
+      enabled: true
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  health:
+    diskspace:
+      threshold: ${HEALTH_DISKSPACE_THRESHOLD:1GB}
+    db:
+      enabled: false  # Disable if no direct DB connection
+  info:
+    env:
+      enabled: true
+    java:
+      enabled: true
+    os:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+        step: ${METRICS_STEP:60s}
+  tracing:
+    sampling:
+      probability: ${TRACING_PROBABILITY:0.1}
 
+# Production MCP configuration
 mcp:
   client:
     default-timeout: ${MCP_DEFAULT_TIMEOUT:30000}
-    max-connections: ${MCP_MAX_CONNECTIONS:200}
-    connection-pool-size: ${MCP_CONNECTION_POOL_SIZE:20}
+    connection-pool-size: ${MCP_POOL_SIZE:20}
     retry:
-      max-attempts: ${MCP_RETRY_MAX_ATTEMPTS:3}
-      backoff-multiplier: ${MCP_RETRY_BACKOFF_MULTIPLIER:2.0}
+      max-attempts: ${MCP_MAX_RETRIES:3}
+      backoff-multiplier: ${MCP_BACKOFF_MULTIPLIER:1.5}
+      max-delay: ${MCP_MAX_DELAY:10000}
+    
   servers:
-    # GitHub MCP Server - Production Configuration
-    github-mcp-server:
-      type: http
-      url: "${GITHUB_MCP_SERVER_URL:https://api.githubcopilot.com/mcp/}"
-      timeout: ${GITHUB_MCP_TIMEOUT:30000}
-      enabled: ${GITHUB_MCP_ENABLED:true}
-      headers:
-        User-Agent: "Global-MCP-Client/1.0-prod"
-        Accept: "application/json"
-        Content-Type: "application/json"
-        Authorization: "Bearer ${GITHUB_TOKEN}"
-      description: "GitHub Copilot MCP server for repository operations"
-      
-    # MongoDB MCP Server - Java Spring Boot Implementation (Primary)
-    mongo-mcp-server:
+    # Production Oracle MCP Server
+    oracle-mcp-server:
       type: stdio
       command: "java"
-      args: ["-jar", "${MONGO_MCP_SERVER_JAR_PATH:C:/spring-boot-ai-mongo.jar}"]
-      timeout: ${MONGO_MCP_TIMEOUT:20000}
-      enabled: ${MONGO_MCP_ENABLED:true}
+      args:
+        - "-Xmx${ORACLE_MCP_MEMORY:1g}"
+        - "-Dspring.profiles.active=mcp-run"
+        - "-Dlogging.level.root=ERROR"
+        - "-Dspring.main.banner-mode=off"
+        - "-Djava.awt.headless=true"
+        - "-jar"
+        - "${ORACLE_MCP_JAR_PATH:/app/servers/mcp-oracledb-server.jar}"
+      timeout: ${ORACLE_MCP_TIMEOUT:30000}
+      enabled: ${ORACLE_MCP_ENABLED:true}
       environment:
-        MONGO_HOST: "${MONGO_HOST:localhost}"
-        MONGO_PORT: "${MONGO_PORT:27017}"
-        MONGO_DATABASE: "${MONGO_DATABASE:production}"
-        SPRING_PROFILES_ACTIVE: "${MONGO_MCP_PROFILE:production}"
-        LOGGING_LEVEL: "${MONGO_MCP_LOG_LEVEL:INFO}"
-        SERVER_PORT: "${MONGO_MCP_SERVER_PORT:0}"
-      description: "Spring Boot MongoDB MCP server for database operations"
-      
-    # Node.js MongoDB MCP Server - Alternative Implementation
+        ORACLE_DB_URL: ${ORACLE_DB_URL}
+        ORACLE_DB_USER: ${ORACLE_DB_USER}
+        ORACLE_DB_PASSWORD: ${ORACLE_DB_PASSWORD}
+        ORACLE_HOST: ${ORACLE_HOST}
+        ORACLE_PORT: ${ORACLE_PORT}
+        ORACLE_SID: ${ORACLE_SID}
+        MCP_TOOLS_EXPOSURE: ${MCP_TOOLS_EXPOSURE:all}
+        ENTERPRISE_ENABLED: ${ENTERPRISE_ENABLED:true}
+        SPRING_MAIN_BANNER_MODE: "off"
+        LOGGING_LEVEL_ROOT: "ERROR"
+        # Production database connection settings
+        CONNECTION_POOL_SIZE: ${DB_POOL_SIZE:10}
+        CONNECTION_TIMEOUT: ${DB_TIMEOUT:30000}
+        IDLE_TIMEOUT: ${DB_IDLE_TIMEOUT:600000}
+        MAX_LIFETIME: ${DB_MAX_LIFETIME:1800000}
+    
+    # Production MongoDB MCP Server (if needed)
     mongodb-mcp-server:
       type: stdio
       command: "node"
-      args: ["${MCP_MONGODB_SERVER_PATH:/opt/mcp-servers/mongodb-server.js}"]
-      timeout: ${MONGODB_MCP_TIMEOUT:15000}
+      args: ["${MONGODB_MCP_SERVER_PATH:/app/servers/mongodb-mcp-server.js}"]
+      timeout: ${MONGODB_MCP_TIMEOUT:20000}
       enabled: ${MONGODB_MCP_ENABLED:false}
       environment:
+        MONGODB_URI: ${MONGODB_URI}
+        MONGODB_DB_NAME: ${MONGODB_DB_NAME:mcpserver}
         NODE_ENV: "production"
-        MONGODB_URI: "${MONGODB_URI}"
-        MONGODB_DB_NAME: "${MONGODB_DB_NAME:production}"
-        MCP_SERVER_NAME: "mongodb-mcp-server"
-        LOG_LEVEL: "${MCP_MONGODB_LOG_LEVEL:warn}"
-        CONNECTION_POOL_SIZE: "${MONGODB_POOL_SIZE:10}"
-        CONNECTION_TIMEOUT: "${MONGODB_CONNECTION_TIMEOUT:10000}"
-      description: "Node.js MongoDB MCP server for database operations"
+    
+    # Production filesystem server (if needed)
+    filesystem-mcp-server:
+      type: stdio
+      command: "python3"
+      args: ["-m", "mcp_server_filesystem"]
+      timeout: ${FILESYSTEM_MCP_TIMEOUT:15000}
+      enabled: ${FILESYSTEM_MCP_ENABLED:false}
+      environment:
+        ROOT_PATH: ${FILESYSTEM_ROOT_PATH:/safe/data}
+        PYTHON_ENV: "production"
+
+# Cache configuration for production
+spring:
+  cache:
+    type: ${CACHE_TYPE:caffeine}
+    caffeine:
+      spec: ${CACHE_SPEC:maximumSize=1000,expireAfterWrite=300s}
+
+# Security configuration for production
+server:
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+  
+# Connection pool configuration
+server:
+  tomcat:
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:8192}
+    max-threads: ${TOMCAT_MAX_THREADS:200}
+    min-spare-threads: ${TOMCAT_MIN_THREADS:10}
+    connection-timeout: ${TOMCAT_TIMEOUT:20000}
+    keep-alive-timeout: ${TOMCAT_KEEPALIVE:60000}
+    max-keep-alive-requests: ${TOMCAT_MAX_KEEPALIVE:100}
+
+# JVM and performance tuning
+spring:
+  jmx:
+    enabled: ${JMX_ENABLED:true}
+  task:
+    execution:
+      pool:
+        core-size: ${TASK_CORE_SIZE:8}
+        max-size: ${TASK_MAX_SIZE:16}
+        queue-capacity: ${TASK_QUEUE_SIZE:1000}
+        keep-alive: ${TASK_KEEP_ALIVE:60s}
+      thread-name-prefix: "mcp-exec-"
+    scheduling:
+      pool:
+        size: ${SCHEDULING_POOL_SIZE:4}
+      thread-name-prefix: "mcp-sched-"

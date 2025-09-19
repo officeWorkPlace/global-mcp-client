@@ -65,6 +65,13 @@ public abstract class BaseCommand {
             System.out.println(colorOutput.gray("🔍 " + message));
         }
     }
+
+    /**
+     * Print debug message with cyan color
+     */
+    protected void printDebug(String message) {
+        System.out.println(colorOutput.cyan("🐛 " + message));
+    }
     
     /**
      * Print a nice header

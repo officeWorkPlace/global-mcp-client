@@ -235,6 +235,7 @@ public class ToolChainOrchestrator {
 
             // Parse parameters
             JsonNode paramsNode = plan.path("parameters");
+            @SuppressWarnings("unchecked")
             Map<String, Object> parameters = objectMapper.convertValue(paramsNode, Map.class);
             step.setParameters(parameters);
 

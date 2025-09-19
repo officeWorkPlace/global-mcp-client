@@ -86,7 +86,7 @@ public class CliMcpService {
 
             ChatResponse aiResponse = aiService.processChat(chatRequest).block();
 
-            if (aiResponse != null && aiResponse.toolExecutions() != null && !aiResponse.toolExecutions().isEmpty()) {
+            if (aiResponse != null && aiResponse.toolsUsed() != null && !aiResponse.toolsUsed().isEmpty()) {
                 // Extract the actual tool result from AI processing
                 // For now, also execute directly to get the raw result for CLI formatting
                 McpToolResult rawResult = mcpClientService.executeTool(serverId, toolName, arguments).block();
@@ -133,7 +133,7 @@ public class CliMcpService {
                 return new CliToolResult(
                     true,
                     formattedResponse,
-                    aiResponse.toolExecutions(),
+                    aiResponse.toolsUsed(),
                     aiResponse.model()
                 );
             }

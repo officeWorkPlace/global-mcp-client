@@ -143,8 +143,9 @@ public class AdvancedAiIntegrationTest {
             // Test complex request that should trigger tool-aware processing
             ChatRequest complexRequest = new ChatRequest(
                 "List all databases and then find documents with status 'active' in each database",
+                null,
                 "test-workflow",
-                null
+                false
             );
 
             try {
@@ -198,7 +199,7 @@ public class AdvancedAiIntegrationTest {
             // Test that performance metrics are being tracked
             int initialContexts = aiServiceImpl.getActiveContextsCount();
 
-            ChatRequest testRequest = new ChatRequest("Test performance", "perf-test", null);
+            ChatRequest testRequest = new ChatRequest("Test performance", null, "perf-test", false);
 
             try {
                 long startTime = System.currentTimeMillis();

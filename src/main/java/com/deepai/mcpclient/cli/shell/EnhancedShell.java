@@ -51,7 +51,9 @@ public class EnhancedShell {
     private static final String DIM = "\u001B[2m";
     private static final String WHITE = "\u001B[37m";
     private static final String RED = "\u001B[31m";
+    private static final String GREEN = "\u001B[32m";
     private static final String YELLOW = "\u001B[33m";
+    private static final String CYAN = "\u001B[36m";
     private static final String BRIGHT_GREEN = "\u001B[92m";
     private static final String BRIGHT_BLUE = "\u001B[94m";
     private static final String BRIGHT_CYAN = "\u001B[96m";
@@ -612,16 +614,6 @@ public class EnhancedShell {
             displayError("Failed to list collections: " + e.getMessage());
         }
     }
-    
-    // Utility methods
-    private void print(String text) {
-        System.out.print(text);
-    }
-    
-    private void println(String text) {
-        System.out.println(text);
-    }
-    
     private void displayError(String message) {
         println("");
         println(RED + "❌ " + BOLD + "Error" + RESET);

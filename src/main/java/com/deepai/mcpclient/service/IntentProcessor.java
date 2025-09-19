@@ -186,6 +186,7 @@ public class IntentProcessor {
 
     private Object extractProperties(Map<String, Object> inputSchema) {
         if (inputSchema.containsKey("properties")) {
+            @SuppressWarnings("unchecked")
             Map<String, Object> properties = (Map<String, Object>) inputSchema.get("properties");
             return properties.keySet();
         }
